@@ -2,6 +2,20 @@
 
 Dated, append-only record of what changed and why. Newest entries at the top.
 
+## 2026-06-16: Postgres schema (PRD milestone 1)
+
+Created the initial Postgres schema and Supabase seed data. No application code yet; this milestone establishes the data model that Python and Go will both depend on.
+
+Migration (`supabase/migrations/20260616000000_initial_schema.sql`) defines 11 tables in 6 concern groups: reference tables (tournaments, teams, fixtures), results (match_results), point-in-time feature tables (team_ratings, match_xg), prediction tables (match_predictions, scoreline_probabilities), simulation tables (simulation_runs, team_stage_probabilities), market table (market_snapshots), grading (match_grading), and user predictions (user_predictions).
+
+Two correctness guardrails are enforced at the schema level. First, `model_as_of < kickoff_utc` is a CHECK constraint on `match_predictions` and `user_predictions`: `kickoff_utc` is denormalized from `fixtures` to make this enforceable without a trigger, since Postgres CHECK constraints cannot reference other tables. Second, `team_ratings` is append-only (temporal table pattern): every rating update inserts a new row rather than overwriting, so any backtest can reproduce the exact feature state for any historical match using `WHERE as_of < kickoff ORDER BY as_of DESC LIMIT 1`.
+
+`match_results.outcome` is a GENERATED ALWAYS AS column derived from 90-minute goals. Penalty shootout result is tracked separately via `pen_winner_id` for bracket propagation, while the model is graded on the 90-minute outcome.
+
+Seed data (`supabase/seed.sql`) contains the WC2026 tournament record and 46 of the 48 qualified teams. Two intercontinental playoff winner slots are marked as TODO with an inline template. The team list is best-effort and must be verified against an authoritative source before running predictions. Group stage fixtures are excluded from the seed and will be populated by the ingestion pipeline (milestone 2).
+
+Decision recorded in docs/decisions/ADR-002-schema-conventions.md.
+
 ## 2026-06-16: Repository scaffold and API contract
 
 Created the folder skeleton and documented the Go-to-Next.js API contract. Nothing with behavior was built; this session establishes where things go and what the interfaces look like.
