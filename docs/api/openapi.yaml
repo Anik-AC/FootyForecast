@@ -1,0 +1,566 @@
+openapi: "3.1.0"
+
+info:
+  title: FootyForecast API
+  version: "0.1.0"
+  description: |
+    Serves precomputed match predictions, tournament simulation results, and
+    model-versus-market comparisons for the FIFA World Cup 2026.
+
+    This API is read-only. Python batch jobs write predictions to Postgres; the Go
+    server reads and serves them. No predictions are computed on request.
+
+    All timestamps are ISO 8601 in UTC. All probabilities are floats in [0, 1].
+
+    The base path /v1 is versioned from day one to avoid a painful migration if
+    predictions are cached in browsers or a CDN.
+
+servers:
+  - url: /v1
+    description: Current version
+
+paths:
+
+  /matches/{match_id}/prediction:
+    get:
+      operationId: getMatchPrediction
+      summary: Per-match probability distribution
+      description: |
+        Returns the pre-match probability distribution for a single match:
+        win/draw/loss outcome probabilities, the full scoreline grid (P for each
+        home/away goals pair), over/under and BTTS marginals, and the
+        model_as_of timestamp confirming the prediction used only pre-kickoff data.
+      parameters:
+        - name: match_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Stable match identifier, e.g. "WC2026-GRP-A-01".
+      responses:
+        "200":
+          description: Prediction found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MatchPrediction"
+        "404":
+          description: Match not found or prediction not yet available.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /simulation/latest:
+    get:
+      operationId: getLatestSimulation
+      summary: Most recent tournament simulation
+      description: |
+        Returns the latest completed Monte Carlo simulation of the full 2026 bracket.
+        Includes each team's probability to reach each stage and win the cup.
+        Re-run after every completed match. Use match_results_as_of to determine
+        which results have been incorporated.
+      responses:
+        "200":
+          description: Simulation found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TournamentSimulation"
+        "404":
+          description: No simulation has run yet.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /simulation/{simulation_id}:
+    get:
+      operationId: getSimulationById
+      summary: Historical tournament simulation by ID
+      description: |
+        Returns a specific past simulation run by ID. Use this to diff stage
+        probabilities before and after a particular match result, which drives
+        the "how did numbers shift after this result" view in the frontend.
+      parameters:
+        - name: simulation_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Simulation found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TournamentSimulation"
+        "404":
+          description: Simulation not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /matches/{match_id}/market-comparison:
+    get:
+      operationId: getMarketComparison
+      summary: Model-versus-market probability comparison
+      description: |
+        Returns the model's outcome probabilities alongside de-vigged market
+        probabilities from Polymarket and Kalshi. Includes a disagreement score
+        used to rank matches in the upset feed (matches where the model diverges
+        most from market consensus). After the match completes, the grading block
+        is populated with log loss and Brier scores for both the model and each
+        market source.
+      parameters:
+        - name: match_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Comparison found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarketComparison"
+        "404":
+          description: Match not found or market data not yet available.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  schemas:
+
+    # ---------------------------------------------------------------------------
+    # Match prediction
+    # ---------------------------------------------------------------------------
+
+    MatchPrediction:
+      type: object
+      required:
+        - match_id
+        - home_team
+        - away_team
+        - match_date
+        - model_as_of
+        - model_version
+        - outcome_probabilities
+        - scoreline_grid
+        - totals
+      properties:
+        match_id:
+          type: string
+          description: Stable match identifier.
+        home_team:
+          $ref: "#/components/schemas/Team"
+        away_team:
+          $ref: "#/components/schemas/Team"
+        match_date:
+          type: string
+          format: date-time
+          description: Scheduled kickoff time (UTC).
+        model_as_of:
+          type: string
+          format: date-time
+          description: |
+            Point-in-time marker. The prediction incorporates only data available
+            before this timestamp. Must be before match_date. Displayed on the
+            frontend so users know the prediction is pre-kickoff.
+        model_version:
+          type: string
+          description: Semantic version of the ensemble that produced these numbers.
+        outcome_probabilities:
+          $ref: "#/components/schemas/OutcomeProbabilities"
+        scoreline_grid:
+          type: array
+          description: |
+            Flat list of (home_goals, away_goals, probability) triples.
+            Goals range 0-7 per side, which covers >99.9% of Poisson probability
+            mass at realistic lambda values. All entries with probability > 0 are
+            included. Probabilities sum to 1.0 across the entire grid.
+
+            A flat list is used rather than a 2D matrix because JSON has no native
+            matrix type, and the flat list is easier to filter, sort, and render
+            as a heatmap on the frontend.
+          items:
+            $ref: "#/components/schemas/ScorelineProbability"
+        totals:
+          $ref: "#/components/schemas/TotalsProbabilities"
+        expected_goals:
+          $ref: "#/components/schemas/ExpectedGoals"
+
+    OutcomeProbabilities:
+      type: object
+      required:
+        - home_win
+        - draw
+        - away_win
+      description: |
+        Three mutually exclusive outcome probabilities. Sum to 1.0 within
+        floating-point tolerance. Reused in MarketSource (de-vigged market
+        probabilities) and MarketComparison (model probabilities).
+      properties:
+        home_win:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+        draw:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+        away_win:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+
+    ScorelineProbability:
+      type: object
+      required:
+        - home_goals
+        - away_goals
+        - probability
+      properties:
+        home_goals:
+          type: integer
+          minimum: 0
+          maximum: 7
+        away_goals:
+          type: integer
+          minimum: 0
+          maximum: 7
+        probability:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+
+    TotalsProbabilities:
+      type: object
+      required:
+        - over_1_5
+        - over_2_5
+        - over_3_5
+        - btts
+      description: |
+        Marginals derived from the scoreline grid and pre-computed for frontend
+        convenience (avoids summing the grid on every render).
+      properties:
+        over_1_5:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+        over_2_5:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+        over_3_5:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+        btts:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          description: "P(home_goals > 0 AND away_goals > 0)."
+
+    ExpectedGoals:
+      type: object
+      description: |
+        Model mean goals (lambda) per team. Informational only. The scoreline_grid
+        is the authoritative distributional output; expected_goals is a useful
+        summary statistic for display.
+      properties:
+        home_xg:
+          type: number
+          format: float
+          minimum: 0
+        away_xg:
+          type: number
+          format: float
+          minimum: 0
+
+    Team:
+      type: object
+      required:
+        - id
+        - name
+        - confederation
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        confederation:
+          type: string
+          enum:
+            - UEFA
+            - CONMEBOL
+            - CAF
+            - AFC
+            - CONCACAF
+            - OFC
+
+    # ---------------------------------------------------------------------------
+    # Tournament simulation
+    # ---------------------------------------------------------------------------
+
+    TournamentSimulation:
+      type: object
+      required:
+        - simulation_id
+        - run_at
+        - n_simulations
+        - match_results_as_of
+        - teams
+      properties:
+        simulation_id:
+          type: string
+        run_at:
+          type: string
+          format: date-time
+          description: When this simulation run completed (UTC).
+        n_simulations:
+          type: integer
+          minimum: 1
+          description: |
+            Number of Monte Carlo draws. Production target is 100,000 or more,
+            which gives stage probability estimates accurate to roughly +/-0.3
+            percentage points at the 95% level.
+        match_results_as_of:
+          type: string
+          format: date-time
+          description: |
+            Timestamp of the latest completed match result incorporated into
+            this run. The frontend displays this so users know which results
+            are reflected.
+        teams:
+          type: array
+          items:
+            $ref: "#/components/schemas/TeamSimulationResult"
+
+    TeamSimulationResult:
+      type: object
+      required:
+        - team_id
+        - team_name
+        - stage_probabilities
+      properties:
+        team_id:
+          type: string
+        team_name:
+          type: string
+        group:
+          type:
+            - string
+            - "null"
+          description: Group letter A-L during the group stage, null after.
+        eliminated:
+          type: boolean
+          default: false
+          description: True if the team has been knocked out.
+        stage_probabilities:
+          $ref: "#/components/schemas/StageProbabilities"
+
+    StageProbabilities:
+      type: object
+      required:
+        - round_of_32
+        - round_of_16
+        - quarter_final
+        - semi_final
+        - final
+        - champion
+      description: |
+        Fraction of Monte Carlo draws in which this team reached each stage or
+        further. Values are monotonically non-increasing (champion <= final <=
+        semi_final <= ...). For eliminated teams, all values are 0.
+
+        These do not sum to 1 across teams for a given stage; each is an
+        independent reach-or-further probability. The sum across all teams for
+        a given stage equals the number of teams that can reach it (e.g. 1 for
+        champion, 2 for final).
+      properties:
+        round_of_32:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+        round_of_16:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+        quarter_final:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+        semi_final:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+        final:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+        champion:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+
+    # ---------------------------------------------------------------------------
+    # Market comparison
+    # ---------------------------------------------------------------------------
+
+    MarketComparison:
+      type: object
+      required:
+        - match_id
+        - model_as_of
+        - model_probabilities
+        - markets
+      properties:
+        match_id:
+          type: string
+        model_as_of:
+          type: string
+          format: date-time
+        model_probabilities:
+          $ref: "#/components/schemas/OutcomeProbabilities"
+        markets:
+          type: array
+          description: |
+            One entry per market source. An array (not a map) so that additional
+            sources can be added without a schema change.
+          items:
+            $ref: "#/components/schemas/MarketSource"
+        disagreement_score:
+          type: number
+          format: float
+          minimum: 0
+          description: |
+            Mean absolute difference between model probabilities and the average
+            de-vigged market across the three outcome probabilities. Used to rank
+            matches in the upset feed (higher score = larger disagreement).
+        grading:
+          description: Null until the match is completed and graded.
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/MatchGrading"
+
+    MarketSource:
+      type: object
+      required:
+        - source
+        - sampled_at
+        - raw
+        - devigged
+      properties:
+        source:
+          type: string
+          enum:
+            - polymarket
+            - kalshi
+        sampled_at:
+          type: string
+          format: date-time
+          description: When these prices were read (pre-kickoff snapshot, UTC).
+        raw:
+          type: object
+          description: |
+            Raw implied probabilities from the market. Sum exceeds 1.0 due to
+            the bookmaker margin (vig). Included for transparency only. Do not
+            display alongside model probabilities without first de-vigging.
+          properties:
+            home_win:
+              type: number
+              format: float
+            draw:
+              type: number
+              format: float
+            away_win:
+              type: number
+              format: float
+        devigged:
+          $ref: "#/components/schemas/OutcomeProbabilities"
+
+    MatchGrading:
+      type: object
+      required:
+        - actual_outcome
+        - model_log_loss
+        - model_brier_score
+      description: Post-match scoring. Populated after the result is confirmed and graded.
+      properties:
+        actual_outcome:
+          type: string
+          enum:
+            - home_win
+            - draw
+            - away_win
+        actual_score:
+          type: object
+          description: Final scoreline.
+          properties:
+            home_goals:
+              type: integer
+              minimum: 0
+            away_goals:
+              type: integer
+              minimum: 0
+        model_log_loss:
+          type: number
+          format: float
+          description: |
+            Log loss of the model's outcome probabilities against the actual result.
+            Lower is better; 0 is perfect; ln(3) ~ 1.099 is the baseline for a
+            uniform prior.
+        model_brier_score:
+          type: number
+          format: float
+          description: |
+            Brier score of the model's outcome probabilities. Lower is better;
+            0 is perfect; 2/3 is the uniform baseline for a three-outcome event.
+        market_log_loss:
+          type: object
+          description: Log loss per market source, keyed by source name.
+          additionalProperties:
+            type: number
+            format: float
+        market_brier_score:
+          type: object
+          description: Brier score per market source, keyed by source name.
+          additionalProperties:
+            type: number
+            format: float
+
+    # ---------------------------------------------------------------------------
+    # Shared
+    # ---------------------------------------------------------------------------
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Human-readable error message.
+        code:
+          type: string
+          description: Machine-readable error code for programmatic handling.
