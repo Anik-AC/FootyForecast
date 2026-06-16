@@ -1,0 +1,108 @@
+# ---------------------------------------------------------------------------
+# FootyForecast .gitignore (polyglot: Python / Go / Next.js / Postgres tooling)
+# ---------------------------------------------------------------------------
+
+# --- Secrets and environment ---
+# API keys for Polymarket, Kalshi, Claude, Supabase service role, etc.
+# Never commit these. Commit a *.example template instead.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+service-account*.json
+credentials*.json
+secrets/
+
+# --- Data and model artifacts ---
+# Raw ingested datasets (Kaggle results, StatsBomb, FBref) are large and
+# reproducible from ingestion jobs. Keep them out of git.
+/data/
+data/raw/
+data/interim/
+data/processed/
+raw/
+*.parquet
+*.feather
+*.duckdb
+
+# PyMC / ArviZ posterior traces and serialized models
+*.nc
+*.cdf
+*.netcdf
+*.pkl
+*.pickle
+*.joblib
+models/*.bin
+artifacts/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.python-version
+*.egg-info/
+.eggs/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.ipynb_checkpoints/
+
+# --- Go ---
+# Compiled binaries (the simulator and API build to bin/)
+/go/bin/
+bin/
+*.exe
+*.exe~
+*.test
+*.out
+coverage.out
+go.work
+go.work.sum
+
+# --- Node / Next.js (web) ---
+node_modules/
+.next/
+out/
+.vercel/
+*.tsbuildinfo
+next-env.d.ts
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+
+# --- Supabase local tooling ---
+.branches/
+.temp/
+supabase/.temp/
+
+# --- graphify (generated knowledge graph, regenerable via /graphify .) ---
+graphify-out/
+
+# --- Claude Code (personal, machine-local settings) ---
+#.claude/settings.local.json
+
+# --- Logs ---
+*.log
+logs/
+
+# --- OS cruft ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Editor / IDE ---
+.idea/
+.vscode/
+*.swp
+*.swo
+*~

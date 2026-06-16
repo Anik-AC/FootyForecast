@@ -1,0 +1,18 @@
+# Normalize line endings: store LF in the repo, check out native on each OS.
+# Owner develops on Windows, deploy targets (Cloud Run, Vercel) are Linux,
+# so force LF for everything text to avoid CRLF noise and broken shell scripts.
+* text=auto eol=lf
+
+# Shell scripts must stay LF even on Windows checkouts.
+*.sh text eol=lf
+
+# Treat common binary assets as binary (no diff, no eol munging).
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.gif binary
+*.pdf binary
+*.parquet binary
+*.nc binary
+*.pkl binary
