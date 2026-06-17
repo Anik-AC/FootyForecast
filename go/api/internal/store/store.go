@@ -15,6 +15,7 @@ var ErrNotFound = errors.New("not found")
 
 // Store is the only DB access point for the API handlers.
 type Store interface {
+	GetMatches(ctx context.Context) ([]models.MatchSummary, error)
 	GetMatchPrediction(ctx context.Context, matchID string) (*models.MatchPrediction, error)
 	GetLatestSimulation(ctx context.Context) (*models.TournamentSimulation, error)
 	GetMarketComparison(ctx context.Context, matchID string) (*models.MarketComparison, error)

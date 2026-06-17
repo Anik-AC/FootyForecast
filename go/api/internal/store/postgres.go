@@ -23,6 +23,79 @@ func NewPostgresStore(pool *pgxpool.Pool) *PostgresStore {
 	return &PostgresStore{pool: pool}
 }
 
+// GetMatches returns all WC 2026 fixtures ordered by kickoff time, with the
+// latest prediction and result attached where available.
+func (s *PostgresStore) GetMatches(ctx context.Context) ([]models.MatchSummary, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT
+			f.id, f.kickoff_utc, f.stage, f.group_letter,
+			ht.id,  ht.name,  ht.confederation,
+			awt.id, awt.name, awt.confederation,
+			mr.home_goals, mr.away_goals,
+			mp.home_win_prob, mp.draw_prob, mp.away_win_prob
+		FROM fixtures f
+		JOIN teams ht  ON ht.id  = f.home_team_id
+		JOIN teams awt ON awt.id = f.away_team_id
+		LEFT JOIN match_results mr ON mr.fixture_id = f.id
+		LEFT JOIN LATERAL (
+			SELECT home_win_prob, draw_prob, away_win_prob
+			FROM match_predictions
+			WHERE fixture_id = f.id
+			ORDER BY computed_at DESC LIMIT 1
+		) mp ON true
+		WHERE f.tournament_id = 'WC2026'
+		ORDER BY f.kickoff_utc ASC
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("query matches: %w", err)
+	}
+	defer rows.Close()
+
+	var matches []models.MatchSummary
+	for rows.Next() {
+		var (
+			id, stage                   string
+			kickoffUTC                  time.Time
+			groupLetter                 *string
+			homeID, homeName, homeConf  string
+			awayID, awayName, awayConf  string
+			homeGoals, awayGoals        *int
+			homeWin, draw, awayWin      *float64
+		)
+		if err := rows.Scan(
+			&id, &kickoffUTC, &stage, &groupLetter,
+			&homeID, &homeName, &homeConf,
+			&awayID, &awayName, &awayConf,
+			&homeGoals, &awayGoals,
+			&homeWin, &draw, &awayWin,
+		); err != nil {
+			return nil, fmt.Errorf("scan match row: %w", err)
+		}
+
+		m := models.MatchSummary{
+			ID:          id,
+			KickoffUTC:  kickoffUTC,
+			Stage:       stage,
+			GroupLetter: groupLetter,
+			HomeTeam:    models.Team{ID: homeID, Name: homeName, Confederation: homeConf},
+			AwayTeam:    models.Team{ID: awayID, Name: awayName, Confederation: awayConf},
+		}
+		if homeGoals != nil && awayGoals != nil {
+			m.Result = &models.MatchResultSummary{HomeGoals: *homeGoals, AwayGoals: *awayGoals}
+		}
+		if homeWin != nil && draw != nil && awayWin != nil {
+			m.Prediction = &models.OutcomeProbabilities{
+				HomeWin: *homeWin, Draw: *draw, AwayWin: *awayWin,
+			}
+		}
+		matches = append(matches, m)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate matches: %w", err)
+	}
+	return matches, nil
+}
+
 // GetMatchPrediction returns the latest prediction for the given fixture ID.
 // Returns ErrNotFound if the fixture does not exist or has no prediction yet.
 func (s *PostgresStore) GetMatchPrediction(ctx context.Context, matchID string) (*models.MatchPrediction, error) {

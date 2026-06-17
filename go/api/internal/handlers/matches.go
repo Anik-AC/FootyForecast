@@ -9,6 +9,18 @@ import (
 	"github.com/footyforecast/api/internal/store"
 )
 
+// GetMatches handles GET /v1/matches — all WC 2026 fixtures with predictions.
+func GetMatches(s store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		matches, err := s.GetMatches(r.Context())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "internal error")
+			return
+		}
+		writeJSON(w, http.StatusOK, matches)
+	}
+}
+
 // GetMatchPrediction handles GET /v1/matches/{matchID}/prediction.
 func GetMatchPrediction(s store.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {

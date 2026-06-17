@@ -17,12 +17,16 @@ import (
 
 // mockStore implements store.Store with canned responses.
 type mockStore struct {
+	matches    []models.MatchSummary
 	prediction *models.MatchPrediction
 	simulation *models.TournamentSimulation
 	comparison *models.MarketComparison
 	err        error
 }
 
+func (m *mockStore) GetMatches(_ context.Context) ([]models.MatchSummary, error) {
+	return m.matches, m.err
+}
 func (m *mockStore) GetMatchPrediction(_ context.Context, _ string) (*models.MatchPrediction, error) {
 	return m.prediction, m.err
 }

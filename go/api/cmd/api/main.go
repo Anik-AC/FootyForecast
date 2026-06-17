@@ -51,6 +51,7 @@ func main() {
 	})
 
 	r.Route("/v1", func(r chi.Router) {
+		r.Get("/matches", handlers.GetMatches(s))
 		r.Get("/matches/{matchID}/prediction", handlers.GetMatchPrediction(s))
 		r.Get("/matches/{matchID}/market-comparison", handlers.GetMarketComparison(s))
 		r.Get("/simulation/latest", handlers.GetLatestSimulation(s))

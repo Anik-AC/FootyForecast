@@ -2,6 +2,38 @@
 
 Dated, append-only record of what changed and why. Newest entries at the top.
 
+## 2026-06-17: Match detail page with scoreline heatmap
+
+Added `/matches/[id]` route to the Next.js frontend, surfacing the full prediction detail for a single fixture.
+
+**New files:**
+
+- `web/app/matches/[id]/page.tsx`: server component that fetches `getMatchPrediction(id)`, shows `notFound()` when the API returns null.
+- `web/components/ScorelineHeatmap.tsx`: client component rendering a 6x6 grid (0-5 goals each axis). Cells are coloured emerald (home win), amber (draw), or rose (away win) in five intensity steps normalised against the highest-probability cell. Probability is shown as text inside each cell when it exceeds 0.5%.
+
+**MatchCard is now clickable:** wrapped in `<Link href="/matches/{id}">` so every card on the home page navigates to the detail page.
+
+**Detail page layout:** match header (teams, kickoff time), stacked probability bar, Win/Draw/Loss stat boxes, optional xG stat boxes, Over 1.5/2.5/3.5/BTTS grid, scoreline heatmap, model version and data-as-of footer.
+
+## 2026-06-17: Next.js frontend (PRD milestone 6)
+
+Added the `web/` Next.js 15 app (TypeScript, Tailwind CSS, App Router).
+
+**Pages:**
+
+- `/` (home): all WC 2026 fixtures grouped by date. Upcoming matches show a stacked probability bar (green = home win, grey = draw, rose = away win) from the model. Completed matches show the confirmed score with the winning team highlighted in emerald. Empty state guides the user to load fixtures.
+- `/bracket`: all 48 teams in a table sorted by P(champion) descending. Each stage column (R32 through Win) is coloured by probability intensity (bright emerald for >50%, fading to slate for <5%). Shows n_simulations and `match_results_as_of` timestamp.
+
+**Architecture:** all pages are React Server Components — data is fetched from the Go API at render time using `next: { revalidate: 60 }` (Incremental Static Regeneration, re-fetches every 60 seconds). No client-side JS required for the base layout.
+
+**API client (`lib/api.ts`):** reads `API_URL` from the server environment (not NEXT_PUBLIC, so never exposed to the browser). Falls back gracefully to null/empty when the API is unreachable, showing a "not available" state instead of crashing.
+
+**TypeScript types (`lib/types.ts`):** derived from `docs/api/openapi.yaml`. Updated in sync with the Go models.
+
+**Go API update:** added `GET /v1/matches` endpoint to serve the fixture list with attached predictions and results. Handler + store method + mock update, all tests still pass.
+
+**Build:** `tsc --noEmit` passes with zero errors.
+
 ## 2026-06-17: Go JSON API (PRD milestone 5)
 
 Added `go/api/` — the read-only JSON API that serves precomputed predictions and simulation results to the Next.js frontend.
