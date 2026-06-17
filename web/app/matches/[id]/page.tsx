@@ -1,8 +1,9 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getMatchPrediction } from "@/lib/api";
+import { getMatchPrediction, getMarketComparison } from "@/lib/api";
 import { ProbabilityBar } from "@/components/ProbabilityBar";
 import { ScorelineHeatmap } from "@/components/ScorelineHeatmap";
+import { MarketPanel } from "@/components/MarketPanel";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -31,7 +32,10 @@ function StatBox({ label, value }: { label: string; value: string }) {
 
 export default async function MatchDetailPage({ params }: PageProps) {
   const { id } = await params;
-  const prediction = await getMatchPrediction(id);
+  const [prediction, market] = await Promise.all([
+    getMatchPrediction(id),
+    getMarketComparison(id),
+  ]);
 
   if (!prediction) notFound();
 
@@ -97,6 +101,16 @@ export default async function MatchDetailPage({ params }: PageProps) {
           <StatBox label="BTTS" value={`${(totals.btts * 100).toFixed(1)}%`} />
         </div>
       </div>
+
+      {/* Model vs market */}
+      {market && (
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
+          <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">
+            Model vs Market
+          </h2>
+          <MarketPanel data={market} />
+        </div>
+      )}
 
       {/* Scoreline heatmap */}
       {scoreline_grid && scoreline_grid.length > 0 && (

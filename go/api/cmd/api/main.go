@@ -55,6 +55,7 @@ func main() {
 		r.Get("/matches/{matchID}/prediction", handlers.GetMatchPrediction(s))
 		r.Get("/matches/{matchID}/market-comparison", handlers.GetMarketComparison(s))
 		r.Get("/simulation/latest", handlers.GetLatestSimulation(s))
+		r.Get("/calibration", handlers.GetCalibration(s))
 	})
 
 	port := os.Getenv("PORT")

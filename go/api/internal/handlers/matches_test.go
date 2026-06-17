@@ -17,11 +17,12 @@ import (
 
 // mockStore implements store.Store with canned responses.
 type mockStore struct {
-	matches    []models.MatchSummary
-	prediction *models.MatchPrediction
-	simulation *models.TournamentSimulation
-	comparison *models.MarketComparison
-	err        error
+	matches     []models.MatchSummary
+	prediction  *models.MatchPrediction
+	simulation  *models.TournamentSimulation
+	comparison  *models.MarketComparison
+	calibration *models.CalibrationSummary
+	err         error
 }
 
 func (m *mockStore) GetMatches(_ context.Context) ([]models.MatchSummary, error) {
@@ -35,6 +36,9 @@ func (m *mockStore) GetLatestSimulation(_ context.Context) (*models.TournamentSi
 }
 func (m *mockStore) GetMarketComparison(_ context.Context, _ string) (*models.MarketComparison, error) {
 	return m.comparison, m.err
+}
+func (m *mockStore) GetCalibration(_ context.Context) (*models.CalibrationSummary, error) {
+	return m.calibration, m.err
 }
 
 // serve routes a single GET request through a chi router and returns the recorder.

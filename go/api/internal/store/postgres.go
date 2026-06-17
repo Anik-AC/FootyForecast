@@ -438,6 +438,130 @@ func (s *PostgresStore) GetMarketComparison(ctx context.Context, matchID string)
 	}, nil
 }
 
+// GetCalibration returns aggregate scoring metrics and per-match grading rows
+// for all completed WC 2026 matches.
+func (s *PostgresStore) GetCalibration(ctx context.Context) (*models.CalibrationSummary, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT
+			mg.fixture_id,
+			f.kickoff_utc,
+			ht.id,  ht.name,  ht.confederation,
+			awt.id, awt.name, awt.confederation,
+			mg.actual_outcome,
+			mp.home_win_prob, mp.draw_prob, mp.away_win_prob,
+			mg.model_log_loss,
+			mg.model_brier_score,
+			mg.market_log_loss,
+			mg.market_brier_score
+		FROM match_grading mg
+		JOIN fixtures f         ON f.id  = mg.fixture_id
+		JOIN teams ht           ON ht.id = f.home_team_id
+		JOIN teams awt          ON awt.id = f.away_team_id
+		JOIN match_predictions mp
+			ON mp.fixture_id    = mg.fixture_id
+			AND mp.model_version = mg.model_version
+		WHERE f.tournament_id = 'WC2026'
+		ORDER BY f.kickoff_utc ASC
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("query calibration: %w", err)
+	}
+	defer rows.Close()
+
+	var (
+		matches         []models.GradedMatch
+		totalLL, totalBS float64
+		marketLL        = make(map[string]float64)
+		marketBS        = make(map[string]float64)
+		marketCounts    = make(map[string]int)
+	)
+
+	for rows.Next() {
+		var (
+			matchID, actualOutcome      string
+			kickoffUTC                  time.Time
+			homeID, homeName, homeConf  string
+			awayID, awayName, awayConf  string
+			homeWin, draw, awayWin      float64
+			modelLL, modelBS            float64
+			mktLLJSON, mktBSJSON        []byte
+		)
+		if err := rows.Scan(
+			&matchID, &kickoffUTC,
+			&homeID, &homeName, &homeConf,
+			&awayID, &awayName, &awayConf,
+			&actualOutcome,
+			&homeWin, &draw, &awayWin,
+			&modelLL, &modelBS,
+			&mktLLJSON, &mktBSJSON,
+		); err != nil {
+			return nil, fmt.Errorf("scan calibration row: %w", err)
+		}
+
+		totalLL += modelLL
+		totalBS += modelBS
+
+		mLL := make(map[string]float64)
+		mBS := make(map[string]float64)
+		if mktLLJSON != nil {
+			_ = json.Unmarshal(mktLLJSON, &mLL)
+		}
+		if mktBSJSON != nil {
+			_ = json.Unmarshal(mktBSJSON, &mBS)
+		}
+		for src, v := range mLL {
+			marketLL[src] += v
+			marketCounts[src]++
+		}
+		for src, v := range mBS {
+			marketBS[src] += v
+		}
+
+		gm := models.GradedMatch{
+			MatchID:    matchID,
+			KickoffUTC: kickoffUTC,
+			HomeTeam:   models.Team{ID: homeID, Name: homeName, Confederation: homeConf},
+			AwayTeam:   models.Team{ID: awayID, Name: awayName, Confederation: awayConf},
+			ActualOutcome: actualOutcome,
+			ModelProbabilities: models.OutcomeProbabilities{
+				HomeWin: homeWin, Draw: draw, AwayWin: awayWin,
+			},
+			ModelLogLoss:    modelLL,
+			ModelBrierScore: modelBS,
+		}
+		if len(mLL) > 0 {
+			gm.MarketLogLoss = mLL
+		}
+		if len(mBS) > 0 {
+			gm.MarketBrierScore = mBS
+		}
+		matches = append(matches, gm)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate calibration rows: %w", err)
+	}
+
+	n := len(matches)
+	summary := &models.CalibrationSummary{
+		TotalMatches: n,
+		Matches:      matches,
+	}
+	if n > 0 {
+		summary.ModelMeanLogLoss = totalLL / float64(n)
+		summary.ModelMeanBrier   = totalBS / float64(n)
+	}
+	if len(marketLL) > 0 {
+		summary.MarketMeanLogLoss = make(map[string]float64)
+		summary.MarketMeanBrier   = make(map[string]float64)
+		for src, v := range marketLL {
+			cnt := float64(marketCounts[src])
+			summary.MarketMeanLogLoss[src] = v / cnt
+			summary.MarketMeanBrier[src]   = marketBS[src] / cnt
+		}
+	}
+	return summary, nil
+}
+
 func deref(f *float64) float64 {
 	if f == nil {
 		return 0

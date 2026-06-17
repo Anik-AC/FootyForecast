@@ -19,4 +19,5 @@ type Store interface {
 	GetMatchPrediction(ctx context.Context, matchID string) (*models.MatchPrediction, error)
 	GetLatestSimulation(ctx context.Context) (*models.TournamentSimulation, error)
 	GetMarketComparison(ctx context.Context, matchID string) (*models.MarketComparison, error)
+	GetCalibration(ctx context.Context) (*models.CalibrationSummary, error)
 }

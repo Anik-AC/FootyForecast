@@ -2,6 +2,42 @@
 
 Dated, append-only record of what changed and why. Newest entries at the top.
 
+## 2026-06-18: Market comparison and calibration tracking (PRD milestone 7)
+
+Three components delivered end-to-end.
+
+### Part A: Post-match grading (Python)
+
+`python/footy/grading.py` computes log loss and Brier score for each completed WC 2026 match. The core functions (`log_loss`, `brier_score`, `devigify`) are pure and fully tested (24 unit tests, all pass). `grade_completed_matches` runs against the live DB, joins `match_predictions` to `match_results`, fetches the latest market snapshot per source (if any), and writes to `match_grading` with `ON CONFLICT DO NOTHING` so the job is re-run safe.
+
+Binary market handling: when a market source has no draw leg (Polymarket/Kalshi often use binary contracts), the model's own draw probability is substituted and the home/away legs are rescaled to fill the remaining probability.
+
+Run with: `uv run python -m footy.grading`
+
+### Part B: Market ingestion (Python)
+
+`python/footy/ingest/market_map.py` holds the static FIFA code to display name mapping for all 48 teams, plus alias resolution for variant spellings (Korea Republic, Ivory Coast, DR Congo, etc.) used across market platforms.
+
+`python/footy/ingest/markets.py` fetches from Polymarket (public API, no key) and Kalshi (bearer token via `KALSHI_API_KEY`). Both clients accept an injectable `http_get` callable so they are testable without network access (29 unit tests, all pass). The fetchers handle both binary (Yes/No) and three-way (Home/Draw/Away) market structures. De-vigging normalises the legs to sum to exactly 1.0 regardless of structure.
+
+Run with: `uv run python -m footy.ingest.markets [--fixture-id WC2026-GRP-A-01]`
+
+### Part C: Go API calibration endpoint
+
+`GET /v1/calibration` added. Queries `match_grading` joined to `fixtures`, `teams`, and `match_predictions`, returns per-match scores plus aggregate means. Market means are computed only for sources that have grading data, so the response is sparse-safe. Handler test covers 200 (empty), 200 (two graded matches with market data), Content-Type, and store error (4 tests; all Go tests still pass).
+
+### Part C: Frontend
+
+`MarketPanel` component displays model vs market probabilities in a table. Cells are coloured emerald (model higher by >5pp) or rose (market higher) to highlight meaningful disagreements. A banner flags matches where the average disagreement exceeds 5pp. Post-match grading section (log loss and Brier per source) appears automatically once results are confirmed.
+
+`/calibration` page shows aggregate mean log loss and Brier for the model and each market source, plus a per-match breakdown table with colour-coded scores (emerald <0.5, amber 0.5-1.0, rose >1.0). Empty state shown until first match is graded.
+
+`/matches/[id]` updated to fetch market comparison in parallel with prediction (one extra `Promise.all` call, no latency impact). Market panel appears between the totals grid and scoreline heatmap.
+
+Nav updated: Matches, Bracket, Calibration.
+
+`tsc --noEmit` passes with zero errors.
+
 ## 2026-06-17: Match detail page with scoreline heatmap
 
 Added `/matches/[id]` route to the Next.js frontend, surfacing the full prediction detail for a single fixture.

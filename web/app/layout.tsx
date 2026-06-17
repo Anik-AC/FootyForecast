@@ -28,11 +28,11 @@ export default function RootLayout({
               <Link href="/" className="hover:text-slate-100 transition-colors">
                 Matches
               </Link>
-              <Link
-                href="/bracket"
-                className="hover:text-slate-100 transition-colors"
-              >
+              <Link href="/bracket" className="hover:text-slate-100 transition-colors">
                 Bracket
+              </Link>
+              <Link href="/calibration" className="hover:text-slate-100 transition-colors">
+                Calibration
               </Link>
             </nav>
           </div>

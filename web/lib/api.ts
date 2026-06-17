@@ -1,4 +1,10 @@
-import type { MatchSummary, MatchPrediction, TournamentSimulation } from "./types";
+import type {
+  MatchSummary,
+  MatchPrediction,
+  TournamentSimulation,
+  MarketComparison,
+  CalibrationSummary,
+} from "./types";
 
 const API_URL = process.env.API_URL ?? "http://localhost:8080";
 
@@ -24,4 +30,12 @@ export async function getMatchPrediction(id: string): Promise<MatchPrediction | 
 
 export async function getLatestSimulation(): Promise<TournamentSimulation | null> {
   return apiFetch<TournamentSimulation>("/v1/simulation/latest");
+}
+
+export async function getMarketComparison(id: string): Promise<MarketComparison | null> {
+  return apiFetch<MarketComparison>(`/v1/matches/${encodeURIComponent(id)}/market-comparison`);
+}
+
+export async function getCalibration(): Promise<CalibrationSummary | null> {
+  return apiFetch<CalibrationSummary>("/v1/calibration");
 }

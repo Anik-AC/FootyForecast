@@ -76,6 +76,64 @@ export interface MatchPrediction {
   expected_goals?: ExpectedGoals;
 }
 
+export interface MarketRaw {
+  home_win: number;
+  draw: number | null;
+  away_win: number;
+}
+
+export interface MarketSource {
+  source: string;
+  sampled_at: string;
+  raw: MarketRaw;
+  devigged: OutcomeProbabilities;
+}
+
+export interface ActualScore {
+  home_goals: number;
+  away_goals: number;
+}
+
+export interface MatchGrading {
+  actual_outcome: string;
+  actual_score?: ActualScore;
+  model_log_loss: number;
+  model_brier_score: number;
+  market_log_loss?: Record<string, number>;
+  market_brier_score?: Record<string, number>;
+}
+
+export interface MarketComparison {
+  match_id: string;
+  model_as_of: string;
+  model_probabilities: OutcomeProbabilities;
+  markets: MarketSource[];
+  disagreement_score?: number;
+  grading: MatchGrading | null;
+}
+
+export interface GradedMatch {
+  match_id: string;
+  kickoff_utc: string;
+  home_team: Team;
+  away_team: Team;
+  actual_outcome: string;
+  model_probabilities: OutcomeProbabilities;
+  model_log_loss: number;
+  model_brier_score: number;
+  market_log_loss?: Record<string, number>;
+  market_brier_score?: Record<string, number>;
+}
+
+export interface CalibrationSummary {
+  total_matches: number;
+  model_mean_log_loss: number;
+  model_mean_brier: number;
+  market_mean_log_loss?: Record<string, number>;
+  market_mean_brier?: Record<string, number>;
+  matches: GradedMatch[];
+}
+
 export interface TournamentSimulation {
   simulation_id: string;
   run_at: string;
