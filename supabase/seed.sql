@@ -27,75 +27,68 @@ INSERT INTO tournaments (id, name, start_date, end_date) VALUES
 -- ---------------------------------------------------------------------------
 -- Teams
 -- Listed by confederation. Count: 6 CONCACAF + 6 CONMEBOL + 16 UEFA +
--- 9 CAF + 8 AFC + 1 OFC = 46 direct qualifiers.
--- The 2 intercontinental playoff winners are marked as TODO below.
+-- 10 CAF + 9 AFC + 1 OFC = 48 qualifiers.
+-- Confirmed against football-data.org API response (June 2026).
 -- ---------------------------------------------------------------------------
 
 INSERT INTO teams (id, name, short_name, confederation, fifa_code) VALUES
 
     -- CONCACAF (6): 3 hosts + 3 additional qualifiers
-    ('USA', 'United States',   'USA',     'CONCACAF', 'USA'),
-    ('CAN', 'Canada',          'Canada',  'CONCACAF', 'CAN'),
-    ('MEX', 'Mexico',          'Mexico',  'CONCACAF', 'MEX'),
-    ('PAN', 'Panama',          'Panama',  'CONCACAF', 'PAN'),
-    ('CRC', 'Costa Rica',      'C Rica',  'CONCACAF', 'CRC'),
-    ('JAM', 'Jamaica',         'Jamaica', 'CONCACAF', 'JAM'), -- verify: may be HON
+    ('USA', 'United States',      'USA',     'CONCACAF', 'USA'),
+    ('CAN', 'Canada',             'Canada',  'CONCACAF', 'CAN'),
+    ('MEX', 'Mexico',             'Mexico',  'CONCACAF', 'MEX'),
+    ('PAN', 'Panama',             'Panama',  'CONCACAF', 'PAN'),
+    ('HAI', 'Haiti',              'Haiti',   'CONCACAF', 'HAI'),
+    ('CUW', 'Curaçao',            'Curaçao', 'CONCACAF', 'CUW'),
 
     -- CONMEBOL (6)
-    ('ARG', 'Argentina',       'ARG',     'CONMEBOL', 'ARG'),
-    ('BRA', 'Brazil',          'Brazil',  'CONMEBOL', 'BRA'),
-    ('COL', 'Colombia',        'COL',     'CONMEBOL', 'COL'),
-    ('URU', 'Uruguay',         'Uruguay', 'CONMEBOL', 'URU'),
-    ('ECU', 'Ecuador',         'Ecuador', 'CONMEBOL', 'ECU'),
-    ('PAR', 'Paraguay',        'PAR',     'CONMEBOL', 'PAR'), -- verify: may be VEN or CHI
+    ('ARG', 'Argentina',          'ARG',     'CONMEBOL', 'ARG'),
+    ('BRA', 'Brazil',             'Brazil',  'CONMEBOL', 'BRA'),
+    ('COL', 'Colombia',           'COL',     'CONMEBOL', 'COL'),
+    ('URU', 'Uruguay',            'Uruguay', 'CONMEBOL', 'URU'),
+    ('ECU', 'Ecuador',            'Ecuador', 'CONMEBOL', 'ECU'),
+    ('PAR', 'Paraguay',           'PAR',     'CONMEBOL', 'PAR'),
 
     -- UEFA (16)
-    ('GER', 'Germany',         'GER',     'UEFA', 'GER'),
-    ('FRA', 'France',          'France',  'UEFA', 'FRA'),
-    ('ENG', 'England',         'England', 'UEFA', 'ENG'),
-    ('ESP', 'Spain',           'Spain',   'UEFA', 'ESP'),
-    ('POR', 'Portugal',        'POR',     'UEFA', 'POR'),
-    ('NED', 'Netherlands',     'NED',     'UEFA', 'NED'),
-    ('BEL', 'Belgium',         'Belgium', 'UEFA', 'BEL'),
-    ('ITA', 'Italy',           'Italy',   'UEFA', 'ITA'),
-    ('CRO', 'Croatia',         'Croatia', 'UEFA', 'CRO'),
-    ('AUT', 'Austria',         'Austria', 'UEFA', 'AUT'),
-    ('SUI', 'Switzerland',     'SUI',     'UEFA', 'SUI'),
-    ('DEN', 'Denmark',         'Denmark', 'UEFA', 'DEN'),
-    ('SCO', 'Scotland',        'Scotland','UEFA', 'SCO'),
-    ('TUR', 'Turkey',          'Turkey',  'UEFA', 'TUR'),
-    ('CZE', 'Czech Republic',  'CZE',     'UEFA', 'CZE'),
-    ('SVK', 'Slovakia',        'SVK',     'UEFA', 'SVK'),
+    ('GER', 'Germany',            'GER',     'UEFA', 'GER'),
+    ('FRA', 'France',             'France',  'UEFA', 'FRA'),
+    ('ENG', 'England',            'England', 'UEFA', 'ENG'),
+    ('ESP', 'Spain',              'Spain',   'UEFA', 'ESP'),
+    ('POR', 'Portugal',           'POR',     'UEFA', 'POR'),
+    ('NED', 'Netherlands',        'NED',     'UEFA', 'NED'),
+    ('BEL', 'Belgium',            'Belgium', 'UEFA', 'BEL'),
+    ('CRO', 'Croatia',            'Croatia', 'UEFA', 'CRO'),
+    ('AUT', 'Austria',            'Austria', 'UEFA', 'AUT'),
+    ('SUI', 'Switzerland',        'SUI',     'UEFA', 'SUI'),
+    ('SCO', 'Scotland',           'Scotland','UEFA', 'SCO'),
+    ('TUR', 'Turkey',             'Turkey',  'UEFA', 'TUR'),
+    ('CZE', 'Czech Republic',     'CZE',     'UEFA', 'CZE'),
+    ('NOR', 'Norway',             'Norway',  'UEFA', 'NOR'),
+    ('SWE', 'Sweden',             'Sweden',  'UEFA', 'SWE'),
+    ('BIH', 'Bosnia-Herzegovina', 'BIH',     'UEFA', 'BIH'),
 
-    -- CAF (9)
-    ('MAR', 'Morocco',         'MAR',     'CAF', 'MAR'),
-    ('NGA', 'Nigeria',         'Nigeria', 'CAF', 'NGA'),
-    ('SEN', 'Senegal',         'Senegal', 'CAF', 'SEN'),
-    ('EGY', 'Egypt',           'Egypt',   'CAF', 'EGY'),
-    ('CMR', 'Cameroon',        'CMR',     'CAF', 'CMR'),
-    ('CIV', 'Cote d''Ivoire',  'CIV',     'CAF', 'CIV'),
-    ('RSA', 'South Africa',    'RSA',     'CAF', 'RSA'),
-    ('GHA', 'Ghana',           'Ghana',   'CAF', 'GHA'),
-    ('COD', 'DR Congo',        'COD',     'CAF', 'COD'), -- verify: may be MLI, TUN, or ALG
+    -- CAF (10)
+    ('MAR', 'Morocco',            'MAR',     'CAF', 'MAR'),
+    ('SEN', 'Senegal',            'Senegal', 'CAF', 'SEN'),
+    ('EGY', 'Egypt',              'Egypt',   'CAF', 'EGY'),
+    ('CIV', 'Cote d''Ivoire',     'CIV',     'CAF', 'CIV'),
+    ('RSA', 'South Africa',       'RSA',     'CAF', 'RSA'),
+    ('GHA', 'Ghana',              'Ghana',   'CAF', 'GHA'),
+    ('COD', 'DR Congo',           'COD',     'CAF', 'COD'),
+    ('ALG', 'Algeria',            'Algeria', 'CAF', 'ALG'),
+    ('TUN', 'Tunisia',            'Tunisia', 'CAF', 'TUN'),
+    ('CPV', 'Cape Verde Islands', 'CPV',     'CAF', 'CPV'),
 
-    -- AFC (8)
-    ('JPN', 'Japan',           'Japan',   'AFC', 'JPN'),
-    ('KOR', 'Korea Republic',  'Korea',   'AFC', 'KOR'),
-    ('AUS', 'Australia',       'AUS',     'AFC', 'AUS'),
-    ('IRN', 'Iran',            'Iran',    'AFC', 'IRN'),
-    ('KSA', 'Saudi Arabia',    'KSA',     'AFC', 'KSA'),
-    ('IRQ', 'Iraq',            'Iraq',    'AFC', 'IRQ'),
-    ('JOR', 'Jordan',          'Jordan',  'AFC', 'JOR'),
-    ('IDN', 'Indonesia',       'IDN',     'AFC', 'IDN'), -- verify: may be UZB or QAT
+    -- AFC (9)
+    ('JPN', 'Japan',              'Japan',   'AFC', 'JPN'),
+    ('KOR', 'Korea Republic',     'Korea',   'AFC', 'KOR'),
+    ('AUS', 'Australia',          'AUS',     'AFC', 'AUS'),
+    ('IRN', 'Iran',               'Iran',    'AFC', 'IRN'),
+    ('KSA', 'Saudi Arabia',       'KSA',     'AFC', 'KSA'),
+    ('IRQ', 'Iraq',               'Iraq',    'AFC', 'IRQ'),
+    ('JOR', 'Jordan',             'Jordan',  'AFC', 'JOR'),
+    ('QAT', 'Qatar',              'Qatar',   'AFC', 'QAT'),
+    ('UZB', 'Uzbekistan',         'UZB',     'AFC', 'UZB'),
 
     -- OFC (1)
-    ('NZL', 'New Zealand',     'NZL',     'OFC', 'NZL');
-
--- TODO: Add the 2 intercontinental playoff winners. The playoff involved teams
--- from multiple confederations competing for 2 remaining spots. Populate these
--- rows from the fixture data feed or the official FIFA source before running
--- any predictions.
---
--- Template:
---   INSERT INTO teams (id, name, short_name, confederation, fifa_code) VALUES
---       ('XXX', 'Team Name', 'Short', 'CONFEDERATION', 'XXX');
+    ('NZL', 'New Zealand',        'NZL',     'OFC', 'NZL');
