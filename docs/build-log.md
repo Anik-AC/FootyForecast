@@ -2,6 +2,25 @@
 
 Dated, append-only record of what changed and why. Newest entries at the top.
 
+## 2026-06-17: Go JSON API (PRD milestone 5)
+
+Added `go/api/` — the read-only JSON API that serves precomputed predictions and simulation results to the Next.js frontend.
+
+**Endpoints (all under `/v1`):**
+
+- `GET /matches/{matchID}/prediction` — win/draw/loss probs, full scoreline grid, over/under, BTTS, xG. Reads from `match_predictions` and `scoreline_probabilities`.
+- `GET /simulation/latest` — Monte Carlo stage-advancement probabilities for all 48 teams. Reads from `simulation_results`, joins team info and group letters.
+- `GET /matches/{matchID}/market-comparison` — model probs vs de-vigged Polymarket/Kalshi snapshots, disagreement score, post-match grading. Returns 200 with empty markets array when no market data exists yet.
+- `GET /health` — liveness check, returns `{"status":"ok"}`.
+
+**Design:** `chi` router (lightweight, idiomatic), `pgxpool` for concurrent connection management (5-conn limit for Supabase free tier), `store.Store` interface so handlers are testable without a DB. CORS middleware reads `CORS_ALLOWED_ORIGIN` from env (defaults to `*` for dev).
+
+**Tests:** 8 handler tests in `internal/handlers/` using a mock store; cover 200/404 paths, JSON shape, Content-Type header, and monotone stage probabilities. All pass.
+
+**Build:** `go build ./cmd/api` compiles cleanly, `go vet ./...` reports no issues.
+
+**Usage:** `DATABASE_URL=... ./api` (listens on `PORT`, default 8080).
+
 ## 2026-06-17: Go Monte Carlo tournament simulator (PRD milestone 4)
 
 Added the full Go simulator under `go/simulator/`. The simulator reads posterior
