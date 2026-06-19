@@ -2,8 +2,9 @@ import { getTeamDetail, getCalibration } from "@/lib/api";
 import { MatchCard } from "@/components/MatchCard";
 import { notFound } from "next/navigation";
 import type { MatchSummary, GradedMatch } from "@/lib/types";
+import { flagUrl } from "@/lib/flags";
 
-// ── Team news via Google News RSS ─────────────────────────────────────────────
+const MONO = "'JetBrains Mono',monospace";
 
 interface NewsItem { title: string; link: string; source: string; pubDate: string }
 
@@ -23,11 +24,9 @@ async function fetchTeamNews(teamName: string): Promise<NewsItem[]> {
       link:  item.match(/<link>([\s\S]*?)<\/link>/)?.[1]?.trim() ?? "",
       source: item.match(/<source[^>]*>([\s\S]*?)<\/source>/)?.[1]?.trim() ?? "",
       pubDate: item.match(/<pubDate>([\s\S]*?)<\/pubDate>/)?.[1]?.trim() ?? "",
-    })).filter(i => i.title);
+    })).filter((i) => i.title);
   } catch { return []; }
 }
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function teamAccuracy(matches: GradedMatch[], teamID: string) {
   const relevant = matches.filter(
@@ -52,7 +51,15 @@ function teamAccuracy(matches: GradedMatch[], teamID: string) {
   return { graded: relevant.length, correct: correct.length };
 }
 
-// ── Component ─────────────────────────────────────────────────────────────────
+function SectionHeader({ color, label }: { color: string; label: string }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 13, margin: "40px 0 16px" }}>
+      <span style={{ width: 4, height: 16, borderRadius: 99, background: color }} />
+      <h2 style={{ fontSize: 13, fontWeight: 700, letterSpacing: "0.14em", color: "#C8C3D6", margin: 0 }}>{label}</h2>
+      <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.07)" }} />
+    </div>
+  );
+}
 
 export default async function TeamPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -75,136 +82,233 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
   const hasPlayers = team.players.length > 0;
 
   return (
-    <div className="space-y-10">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">{team.name}</h1>
-          <div className="flex items-center gap-3 mt-2 text-sm text-slate-400">
-            <span>{team.confederation}</span>
-            {team.group && <span>· Group {team.group}</span>}
+    <div style={{ animation: "ff-up 0.4s ease both", paddingTop: 46 }}>
+      {/* Hero header */}
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 28, flexWrap: "wrap" }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={flagUrl(team.id, 160)}
+          alt={team.id}
+          style={{
+            width: 104,
+            height: 70,
+            borderRadius: 12,
+            objectFit: "cover",
+            border: "1px solid rgba(255,255,255,0.16)",
+            boxShadow: "0 8px 28px rgba(0,0,0,0.45)",
+            flexShrink: 0,
+          }}
+        />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <h1 style={{ fontSize: 38, fontWeight: 900, letterSpacing: "-0.03em", margin: 0, lineHeight: 1.05 }}>
+            {team.name}
+          </h1>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
+            <span style={{
+              fontFamily: MONO,
+              fontSize: 12,
+              fontWeight: 600,
+              color: "#9E99B0",
+              background: "#1D1A2A",
+              padding: "4px 10px",
+              borderRadius: 7,
+              border: "1px solid rgba(255,255,255,0.06)",
+            }}>
+              {team.confederation}
+            </span>
+            {team.group && (
+              <span style={{
+                fontFamily: MONO,
+                fontSize: 12,
+                fontWeight: 600,
+                color: "#2BE38A",
+                background: "rgba(43,227,138,0.1)",
+                padding: "4px 10px",
+                borderRadius: 7,
+                border: "1px solid rgba(43,227,138,0.22)",
+              }}>
+                Group {team.group}
+              </span>
+            )}
             {team.elo_rating != null && (
-              <span>· Elo <span className="font-bold text-slate-200">{Math.round(team.elo_rating)}</span></span>
+              <span style={{ fontFamily: MONO, fontSize: 13, color: "#9E99B0" }}>
+                Elo <b style={{ color: "#F2F1F7" }}>{Math.round(team.elo_rating)}</b>
+              </span>
             )}
           </div>
         </div>
+
         {/* W/D/L record */}
         {team.record.played > 0 && (
-          <div className="flex gap-4 text-center shrink-0">
-            <div>
-              <div className="text-xl font-bold text-emerald-400">{team.record.won}</div>
-              <div className="text-[10px] text-slate-500 uppercase">W</div>
-            </div>
-            <div>
-              <div className="text-xl font-bold text-slate-300">{team.record.drawn}</div>
-              <div className="text-[10px] text-slate-500 uppercase">D</div>
-            </div>
-            <div>
-              <div className="text-xl font-bold text-red-400">{team.record.lost}</div>
-              <div className="text-[10px] text-slate-500 uppercase">L</div>
-            </div>
-            <div>
-              <div className="text-xl font-bold text-slate-100">{team.record.gf}–{team.record.ga}</div>
-              <div className="text-[10px] text-slate-500 uppercase">GF–GA</div>
-            </div>
+          <div style={{ display: "flex", gap: 2, flexShrink: 0 }}>
+            {[
+              { label: "W", value: team.record.won, color: "#2BE38A" },
+              { label: "D", value: team.record.drawn, color: "#9E99B0" },
+              { label: "L", value: team.record.lost, color: "#FF5D6A" },
+              { label: "GF/GA", value: `${team.record.gf}/${team.record.ga}`, color: "#F2F1F7" },
+            ].map((stat) => (
+              <div key={stat.label} style={{
+                background: "#15131F",
+                border: "1px solid rgba(255,255,255,0.07)",
+                borderRadius: 12,
+                padding: "10px 16px",
+                textAlign: "center",
+                minWidth: 52,
+              }}>
+                <div style={{ fontFamily: MONO, fontSize: 20, fontWeight: 800, color: stat.color }}>{stat.value}</div>
+                <div style={{ fontFamily: MONO, fontSize: 10, color: "#645F77", marginTop: 3, letterSpacing: "0.06em" }}>{stat.label}</div>
+              </div>
+            ))}
           </div>
         )}
       </div>
 
-      {/* Model stats for this team */}
+      {/* Model performance */}
       {modelStats && modelStats.graded > 0 && (
-        <section className="space-y-3">
-          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-widest">Model Performance</h2>
-          <div className="flex gap-4">
-            <div className="bg-slate-900 border border-slate-800 rounded-xl px-5 py-3 text-center">
-              <div className="text-lg font-bold text-slate-100">{modelStats.correct}/{modelStats.graded}</div>
-              <div className="text-[10px] text-slate-500 uppercase mt-0.5">Correct calls</div>
+        <>
+          <SectionHeader color="#A35CFF" label="MODEL PERFORMANCE" />
+          <div style={{ display: "flex", gap: 10 }}>
+            <div style={{
+              background: "#15131F",
+              border: "1px solid rgba(255,255,255,0.07)",
+              borderRadius: 14,
+              padding: "16px 22px",
+              textAlign: "center",
+            }}>
+              <div style={{ fontFamily: MONO, fontSize: 22, fontWeight: 800, color: "#F2F1F7" }}>
+                {modelStats.correct}/{modelStats.graded}
+              </div>
+              <div style={{ fontFamily: MONO, fontSize: 10, color: "#645F77", marginTop: 4, letterSpacing: "0.06em" }}>CORRECT CALLS</div>
             </div>
-            <div className="bg-slate-900 border border-slate-800 rounded-xl px-5 py-3 text-center">
-              <div className={`text-lg font-bold ${modelStats.graded > 0 && modelStats.correct / modelStats.graded >= 0.6 ? "text-emerald-400" : "text-slate-100"}`}>
+            <div style={{
+              background: "#15131F",
+              border: "1px solid rgba(255,255,255,0.07)",
+              borderRadius: 14,
+              padding: "16px 22px",
+              textAlign: "center",
+            }}>
+              <div style={{
+                fontFamily: MONO,
+                fontSize: 22,
+                fontWeight: 800,
+                color: modelStats.graded > 0 && modelStats.correct / modelStats.graded >= 0.6
+                  ? "#2BE38A"
+                  : "#F2F1F7",
+              }}>
                 {modelStats.graded > 0 ? Math.round((modelStats.correct / modelStats.graded) * 100) : 0}%
               </div>
-              <div className="text-[10px] text-slate-500 uppercase mt-0.5">Accuracy</div>
+              <div style={{ fontFamily: MONO, fontSize: 10, color: "#645F77", marginTop: 4, letterSpacing: "0.06em" }}>ACCURACY</div>
             </div>
           </div>
-        </section>
+        </>
       )}
 
       {/* Player stats */}
       {hasPlayers && (
-        <section className="space-y-3">
-          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-widest">Player Stats</h2>
-          <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-            <table className="w-full text-sm">
+        <>
+          <SectionHeader color="#FFC23D" label="PLAYER STATS" />
+          <div style={{
+            background: "#120F1E",
+            border: "1px solid rgba(255,255,255,0.07)",
+            borderRadius: 16,
+            overflow: "hidden",
+          }}>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
-                <tr className="text-xs text-slate-500 uppercase tracking-wider border-b border-slate-800">
-                  <th className="text-left py-2.5 px-4">Player</th>
-                  <th className="text-center py-2.5 px-3">Apps</th>
-                  <th className="text-center py-2.5 px-3">Goals</th>
-                  <th className="text-center py-2.5 px-3">Assists</th>
-                  <th className="text-center py-2.5 px-3">Pens</th>
+                <tr>
+                  {["PLAYER", "APPS", "GOALS", "ASSISTS", "PENS"].map((col, i) => (
+                    <th key={col} style={{
+                      fontFamily: MONO,
+                      fontSize: 11,
+                      fontWeight: 600,
+                      letterSpacing: "0.08em",
+                      color: "#645F77",
+                      paddingTop: 10,
+                      paddingBottom: 10,
+                      paddingLeft: i === 0 ? 18 : 0,
+                      paddingRight: i === 4 ? 18 : 0,
+                      borderBottom: "1px solid rgba(255,255,255,0.06)",
+                      textAlign: i === 0 ? "left" : "center",
+                    }}>
+                      {col}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {team.players.map((p, i) => (
-                  <tr key={i} className="border-b border-slate-800 last:border-0">
-                    <td className="py-2.5 px-4 font-medium text-slate-100">{p.player_name}</td>
-                    <td className="py-2.5 px-3 text-center text-slate-500 tabular-nums">{p.appearances || "–"}</td>
-                    <td className="py-2.5 px-3 text-center font-bold tabular-nums text-emerald-400">{p.goals}</td>
-                    <td className="py-2.5 px-3 text-center tabular-nums text-slate-300">{p.assists || "–"}</td>
-                    <td className="py-2.5 px-3 text-center tabular-nums text-slate-500">{p.penalties || "–"}</td>
+                  <tr key={i} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                    <td style={{ paddingLeft: 18, paddingTop: 11, paddingBottom: 11, fontWeight: 600, fontSize: 14, color: "#F2F1F7" }}>
+                      {p.player_name}
+                    </td>
+                    <td style={{ textAlign: "center", fontFamily: MONO, fontSize: 13, color: "#645F77" }}>
+                      {p.appearances || "–"}
+                    </td>
+                    <td style={{ textAlign: "center", fontFamily: MONO, fontSize: 14, fontWeight: 700, color: p.goals > 0 ? "#2BE38A" : "#645F77" }}>
+                      {p.goals}
+                    </td>
+                    <td style={{ textAlign: "center", fontFamily: MONO, fontSize: 13, color: "#9E99B0" }}>
+                      {p.assists || "–"}
+                    </td>
+                    <td style={{ textAlign: "center", paddingRight: 18, fontFamily: MONO, fontSize: 13, color: "#645F77" }}>
+                      {p.penalties || "–"}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-          <p className="text-xs text-slate-700">Cards data not yet available on current data plan.</p>
-        </section>
+        </>
       )}
 
       {/* Upcoming fixtures */}
       {upcoming.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-widest">Upcoming</h2>
-          <div className="grid gap-3 sm:grid-cols-2">
+        <>
+          <SectionHeader color="#2BE38A" label="UPCOMING" />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             {upcoming.map((m) => <MatchCard key={m.id} match={m} />)}
           </div>
-        </section>
+        </>
       )}
 
       {/* Results */}
       {played.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-widest">Results</h2>
-          <div className="grid gap-3 sm:grid-cols-2">
+        <>
+          <SectionHeader color="#5B8CFF" label="RESULTS" />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, alignItems: "start" }}>
             {[...played].reverse().map((m) => <MatchCard key={m.id} match={m} />)}
           </div>
-        </section>
+        </>
       )}
 
       {/* Team news */}
-      <section className="space-y-3">
-        <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-widest">Latest News</h2>
-        {news.length === 0 ? (
-          <p className="text-slate-500 text-sm">No news found for {team.name}.</p>
-        ) : (
-          <div className="space-y-2">
-            {news.map((item, i) => (
-              <a key={i} href={item.link} target="_blank" rel="noopener noreferrer"
-                className="block bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 hover:border-slate-600 transition-colors">
-                <p className="text-sm font-medium text-slate-100 leading-snug">{item.title}</p>
-                <div className="flex items-center gap-2 mt-1 text-xs text-slate-500">
-                  {item.source && <span>{item.source}</span>}
-                  {item.source && item.pubDate && <span>·</span>}
+      <SectionHeader color="#FFC23D" label="LATEST NEWS" />
+      {news.length === 0 ? (
+        <p style={{ color: "#645F77", fontSize: 14 }}>No news found for {team.name}.</p>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {news.map((item, i) => (
+            <a key={i} href={item.link} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
+              <div style={{
+                background: "#120F1E",
+                border: "1px solid rgba(255,255,255,0.06)",
+                borderRadius: 14,
+                padding: "18px 22px",
+                cursor: "pointer",
+              }}>
+                <div style={{ fontSize: 15.5, fontWeight: 700, color: "#EDEBF3", lineHeight: 1.4 }}>{item.title}</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 9, marginTop: 8, fontSize: 13, color: "#7E7892" }}>
+                  {item.source && <span style={{ color: "#9E99B0", fontWeight: 600 }}>{item.source}</span>}
+                  {item.source && item.pubDate && <span style={{ color: "#3F3A52" }}>·</span>}
                   {item.pubDate && (
                     <span>{new Date(item.pubDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</span>
                   )}
                 </div>
-              </a>
-            ))}
-          </div>
-        )}
-      </section>
+              </div>
+            </a>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

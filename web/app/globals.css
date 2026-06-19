@@ -1,3 +1,50 @@
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  background: #0B0A12;
+  color: #F2F1F7;
+  font-family: 'Archivo', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: #2BE38A;
+  color: #06231A;
+}
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb {
+  background: #2A2640;
+  border-radius: 8px;
+  border: 3px solid #0B0A12;
+}
+
+/* Nav hover utility */
+.ff-nav-item:hover {
+  background: rgba(255, 255, 255, 0.06) !important;
+}
+
+/* Card hover states */
+.ff-match-card:hover {
+  border-color: rgba(43, 227, 138, 0.35) !important;
+}
+.ff-result-card:hover {
+  border-color: rgba(255, 255, 255, 0.16) !important;
+}
+.ff-team-card:hover {
+  border-color: rgba(43, 227, 138, 0.35) !important;
+  background: #15131F !important;
+}
+.ff-bracket-row:hover {
+  background: rgba(255, 255, 255, 0.04) !important;
+}
+.ff-bracket-row.ff-selected {
+  background: rgba(43, 227, 138, 0.06) !important;
+}

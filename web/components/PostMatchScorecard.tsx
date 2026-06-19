@@ -2,6 +2,8 @@
 
 import type { MatchGrading, OutcomeProbabilities, Team } from "@/lib/types";
 
+const MONO = "'JetBrains Mono',monospace";
+
 interface Props {
   grading: MatchGrading;
   modelProbs: OutcomeProbabilities;
@@ -10,11 +12,7 @@ interface Props {
   tournamentMeanLogLoss?: number;
 }
 
-function outcomeLabel(
-  outcome: string,
-  homeTeam: Team,
-  awayTeam: Team
-): string {
+function outcomeLabel(outcome: string, homeTeam: Team, awayTeam: Team): string {
   if (outcome === "home_win") return `${homeTeam.name} win`;
   if (outcome === "away_win") return `${awayTeam.name} win`;
   return "Draw";
@@ -42,31 +40,31 @@ export default function PostMatchScorecard({
   const correct = modelProb >= 0.5;
   const outcomeText = outcomeLabel(outcome, homeTeam, awayTeam);
 
-  // How surprising was this result? Compare this match's log loss to the
-  // tournament average. Higher log loss = more surprised the model was.
   const relativeSurprise =
     tournamentMeanLogLoss != null
       ? grading.model_log_loss - tournamentMeanLogLoss
       : null;
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 space-y-4">
-      <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider">
-        Model Verdict
-      </h2>
-
+    <div style={{
+      background: "#120F1E",
+      border: "1px solid rgba(255,255,255,0.07)",
+      borderRadius: 16,
+      padding: "20px 24px",
+      display: "flex",
+      flexDirection: "column",
+      gap: 18,
+    }}>
       {/* Outcome verdict */}
-      <div className="flex items-center gap-3">
-        <span
-          className={`text-2xl ${correct ? "text-emerald-400" : "text-red-400"}`}
-        >
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
+        <span style={{ fontSize: 24, color: correct ? "#2BE38A" : "#FF5D6A", fontWeight: 800, lineHeight: 1 }}>
           {correct ? "✓" : "✗"}
         </span>
         <div>
-          <div className="text-slate-100 font-medium">
+          <div style={{ fontSize: 15, fontWeight: 700, color: "#F2F1F7" }}>
             {outcomeText} ({pct(modelProb)} pre-match)
           </div>
-          <div className="text-sm text-slate-500">
+          <div style={{ fontSize: 13.5, color: "#9E99B0", marginTop: 4 }}>
             {correct
               ? "The model's most likely outcome was correct."
               : `The model's favoured outcome was wrong. Actual: ${outcomeText}.`}
@@ -75,47 +73,38 @@ export default function PostMatchScorecard({
       </div>
 
       {/* Scoring metrics */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="bg-slate-950 rounded-lg p-3 text-center">
-          <div className="text-xs text-slate-500 mb-1">Log Loss</div>
-          <div className="text-xl font-bold tabular-nums text-slate-100">
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+        <div style={{ background: "#1D1A2A", borderRadius: 12, padding: "14px 16px", textAlign: "center" }}>
+          <div style={{ fontSize: 12, color: "#645F77", marginBottom: 6 }}>Log Loss</div>
+          <div style={{ fontFamily: MONO, fontSize: 22, fontWeight: 800, color: "#F2F1F7" }}>
             {grading.model_log_loss.toFixed(3)}
           </div>
           {relativeSurprise != null && (
-            <div
-              className={`text-xs mt-1 ${
-                relativeSurprise > 0 ? "text-red-400" : "text-emerald-400"
-              }`}
-            >
-              {relativeSurprise > 0 ? "+" : ""}
-              {relativeSurprise.toFixed(3)} vs avg
+            <div style={{ fontFamily: MONO, fontSize: 12, marginTop: 5, color: relativeSurprise > 0 ? "#FF5D6A" : "#2BE38A" }}>
+              {relativeSurprise > 0 ? "+" : ""}{relativeSurprise.toFixed(3)} vs avg
             </div>
           )}
         </div>
-        <div className="bg-slate-950 rounded-lg p-3 text-center">
-          <div className="text-xs text-slate-500 mb-1">Brier Score</div>
-          <div className="text-xl font-bold tabular-nums text-slate-100">
+        <div style={{ background: "#1D1A2A", borderRadius: 12, padding: "14px 16px", textAlign: "center" }}>
+          <div style={{ fontSize: 12, color: "#645F77", marginBottom: 6 }}>Brier Score</div>
+          <div style={{ fontFamily: MONO, fontSize: 22, fontWeight: 800, color: "#F2F1F7" }}>
             {grading.model_brier_score.toFixed(3)}
           </div>
-          <div className="text-xs text-slate-600 mt-1">lower = better</div>
+          <div style={{ fontFamily: MONO, fontSize: 12, color: "#4A4560", marginTop: 5 }}>lower = better</div>
         </div>
       </div>
 
-      {/* Market comparison if available */}
+      {/* Market comparison */}
       {grading.market_log_loss && Object.keys(grading.market_log_loss).length > 0 && (
         <div>
-          <div className="text-xs text-slate-500 mb-2">vs markets</div>
-          <div className="space-y-1">
+          <div style={{ fontFamily: MONO, fontSize: 11, color: "#645F77", marginBottom: 10, letterSpacing: "0.06em" }}>VS MARKETS</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {Object.entries(grading.market_log_loss).map(([src, ll]) => {
               const modelBetter = grading.model_log_loss < ll;
               return (
-                <div key={src} className="flex items-center justify-between text-sm">
-                  <span className="text-slate-400 capitalize">{src}</span>
-                  <span
-                    className={`font-mono ${
-                      modelBetter ? "text-emerald-400" : "text-red-400"
-                    }`}
-                  >
+                <div key={src} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 13.5 }}>
+                  <span style={{ color: "#9E99B0", textTransform: "capitalize" as const }}>{src}</span>
+                  <span style={{ fontFamily: MONO, color: modelBetter ? "#2BE38A" : "#FF5D6A", fontWeight: 600 }}>
                     {modelBetter ? "Model better" : "Market better"} ({ll.toFixed(3)})
                   </span>
                 </div>

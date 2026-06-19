@@ -1,55 +1,56 @@
 import type { MatchScorerPredictions, PlayerScorerPrediction, TeamScorerPredictions } from "@/lib/types";
 
-interface Props {
-  data: MatchScorerPredictions;
-}
-
+const MONO = "'JetBrains Mono',monospace";
 const TOP_N = 5;
 
 function pct(n: number): string {
   return `${(n * 100).toFixed(1)}%`;
 }
 
-// Bar fills proportionally, capped so a 45% prob player doesn't fill the whole bar.
 function barWidth(prob: number): string {
   return `${Math.min(prob / 0.5, 1) * 100}%`;
 }
 
-// Blue → green → amber → red gradient, always rendered at full width and clipped.
-const BAR_GRADIENT = "linear-gradient(to right, #3b82f6, #22c55e, #f59e0b, #ef4444)";
+const BAR_GRADIENT = "linear-gradient(to right, #5B8CFF, #2BE38A, #FFC23D)";
 
 function PlayerRow({ player }: { player: PlayerScorerPrediction }) {
-  // Probability is always derived from club xG. Tournament goals are shown as
-  // an annotation only — they do not feed into anytime_scorer_prob.
-  const goalTag = player.tournament_goals > 0
-    ? `⚽ ${player.tournament_goals}`
-    : null;
+  const goalTag = player.tournament_goals > 0 ? `⚽ ${player.tournament_goals}` : null;
 
   return (
-    <div className="mb-4 last:mb-0">
-      {/* Row 1: player name (+ goal count if scored) + probability */}
-      <div className="flex items-baseline justify-between gap-2 mb-1">
-        <span className="text-sm font-semibold text-slate-100 leading-snug">
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8, marginBottom: 6 }}>
+        <span style={{ fontSize: 14, fontWeight: 700, color: "#F2F1F7", lineHeight: 1.2 }}>
           {player.player_name}
           {goalTag && (
-            <span className="ml-1.5 text-[10px] font-bold text-emerald-400">{goalTag}</span>
+            <span style={{ marginLeft: 6, fontFamily: MONO, fontSize: 10, fontWeight: 700, color: "#2BE38A" }}>{goalTag}</span>
           )}
         </span>
-        <span className="text-sm font-bold text-emerald-400 tabular-nums shrink-0">
+        <span style={{ fontFamily: MONO, fontSize: 14, fontWeight: 700, color: "#2BE38A", flexShrink: 0 }}>
           {pct(player.anytime_scorer_prob)}
         </span>
       </div>
-      {/* Row 2: source badge (always xG) + gradient bar */}
-      <div className="flex items-center gap-2">
-        <span
-          className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded shrink-0 bg-teal-900/50 text-teal-400 border border-teal-700/50"
-        >
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span style={{
+          fontFamily: MONO,
+          fontSize: 10,
+          fontWeight: 700,
+          color: "#1FD0C0",
+          background: "rgba(31,208,192,0.1)",
+          border: "1px solid rgba(31,208,192,0.22)",
+          padding: "1px 7px",
+          borderRadius: 5,
+          flexShrink: 0,
+        }}>
           xG
         </span>
-        <div className="flex-1 relative h-1.5 bg-slate-800 rounded-full overflow-hidden">
+        <div style={{ flex: 1, height: 5, background: "#1D1A2A", borderRadius: 99, overflow: "hidden" }}>
           <div
-            className="absolute left-0 top-0 h-full rounded-full"
-            style={{ width: barWidth(player.anytime_scorer_prob), background: BAR_GRADIENT }}
+            style={{
+              height: "100%",
+              borderRadius: 99,
+              width: barWidth(player.anytime_scorer_prob),
+              background: BAR_GRADIENT,
+            }}
           />
         </div>
       </div>
@@ -61,12 +62,18 @@ function TeamColumn({ team, side }: { team: TeamScorerPredictions; side: "home" 
   const players = team.players.slice(0, TOP_N);
 
   return (
-    <div className={`flex-1 min-w-0 ${side === "away" ? "pl-5 border-l border-slate-800" : "pr-5"}`}>
-      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">
-        {team.team_name}
-      </p>
+    <div style={{
+      flex: 1,
+      minWidth: 0,
+      ...(side === "away"
+        ? { paddingLeft: 20, borderLeft: "1px solid rgba(255,255,255,0.06)" }
+        : { paddingRight: 20 }),
+    }}>
+      <div style={{ fontFamily: MONO, fontSize: 11, fontWeight: 700, color: "#645F77", letterSpacing: "0.1em", marginBottom: 16 }}>
+        {team.team_name.toUpperCase()}
+      </div>
       {players.length === 0 ? (
-        <p className="text-xs text-slate-600 italic">No scorer data yet.</p>
+        <p style={{ fontSize: 13, color: "#4A4560", fontStyle: "italic" }}>No scorer data yet.</p>
       ) : (
         players.map((p) => <PlayerRow key={p.player_name} player={p} />)
       )}
@@ -74,26 +81,35 @@ function TeamColumn({ team, side }: { team: TeamScorerPredictions; side: "home" 
   );
 }
 
-export default function PlayerScorers({ data }: Props) {
-  const hasAnyPlayers =
-    data.home_team.players.length > 0 || data.away_team.players.length > 0;
+interface Props {
+  data: MatchScorerPredictions;
+}
 
+export default function PlayerScorers({ data }: Props) {
+  const hasAnyPlayers = data.home_team.players.length > 0 || data.away_team.players.length > 0;
   if (!hasAnyPlayers) return null;
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
-      {/* Header row */}
-      <div className="flex items-start justify-between gap-4 mb-6">
-        <h2 className="text-sm font-extrabold text-slate-100 uppercase tracking-widest leading-tight">
-          Probable Goalscorers
-        </h2>
-        <span className="text-[10px] text-slate-400 bg-slate-800 rounded-full px-3 py-1 whitespace-nowrap shrink-0 mt-0.5">
+    <div style={{
+      background: "#120F1E",
+      border: "1px solid rgba(255,255,255,0.07)",
+      borderRadius: 16,
+      padding: "20px 24px",
+    }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+        <span style={{ fontSize: 14, fontWeight: 700, color: "#F2F1F7" }}>Probable Goalscorers</span>
+        <span style={{
+          fontFamily: MONO,
+          fontSize: 11,
+          color: "#9E99B0",
+          background: "#1D1A2A",
+          padding: "4px 10px",
+          borderRadius: 7,
+        }}>
           2025/26 club xG
         </span>
       </div>
-
-      {/* Two-column player grid */}
-      <div className="flex gap-0">
+      <div style={{ display: "flex", gap: 0 }}>
         <TeamColumn team={data.home_team} side="home" />
         <TeamColumn team={data.away_team} side="away" />
       </div>

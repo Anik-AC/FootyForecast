@@ -1,6 +1,21 @@
 import { getGroupStandings, getLatestSimulation } from "@/lib/api";
 import type { GroupTable, GroupStanding } from "@/lib/types";
 import Link from "next/link";
+import { flagUrl } from "@/lib/flags";
+
+const MONO = "'JetBrains Mono',monospace";
+
+const TH_STYLE: React.CSSProperties = {
+  fontFamily: MONO,
+  fontSize: 11,
+  fontWeight: 600,
+  letterSpacing: "0.08em",
+  color: "#645F77",
+  paddingTop: 8,
+  paddingBottom: 10,
+  borderBottom: "1px solid rgba(255,255,255,0.06)",
+  whiteSpace: "nowrap" as const,
+};
 
 function GroupCard({
   group,
@@ -10,70 +25,83 @@ function GroupCard({
   advanceProbs: Record<string, number>;
 }) {
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-      <div className="px-4 py-3 bg-slate-800/60 border-b border-slate-700">
-        <h2 className="text-sm font-bold text-slate-100 uppercase tracking-wider">
-          Group {group.letter}
-        </h2>
+    <div style={{
+      background: "#120F1E",
+      border: "1px solid rgba(255,255,255,0.07)",
+      borderRadius: 16,
+      overflow: "hidden",
+    }}>
+      <div style={{
+        background: "#15131F",
+        padding: "12px 18px",
+        borderBottom: "1px solid rgba(255,255,255,0.06)",
+      }}>
+        <span style={{ fontFamily: MONO, fontSize: 12, fontWeight: 700, letterSpacing: "0.14em", color: "#C8C3D6" }}>
+          GROUP {group.letter}
+        </span>
       </div>
-      <table className="w-full text-sm">
+
+      <table style={{ width: "100%", borderCollapse: "collapse" }}>
         <thead>
-          <tr className="text-xs text-slate-500 uppercase tracking-wider border-b border-slate-800">
-            <th className="text-left py-2 px-4">Team</th>
-            <th className="text-center py-2 px-2">P</th>
-            <th className="text-center py-2 px-2">W</th>
-            <th className="text-center py-2 px-2">D</th>
-            <th className="text-center py-2 px-2">L</th>
-            <th className="text-center py-2 px-2">GD</th>
-            <th className="text-center py-2 px-2">GF</th>
-            <th className="text-right py-2 px-3 font-bold">Pts</th>
-            <th className="text-right py-2 px-4 text-emerald-600">Qualify</th>
+          <tr>
+            <th style={{ ...TH_STYLE, textAlign: "left", paddingLeft: 16, paddingRight: 6 }}>TEAM</th>
+            <th style={{ ...TH_STYLE, textAlign: "center", width: 28 }}>P</th>
+            <th style={{ ...TH_STYLE, textAlign: "center", width: 28 }}>W</th>
+            <th style={{ ...TH_STYLE, textAlign: "center", width: 28 }}>D</th>
+            <th style={{ ...TH_STYLE, textAlign: "center", width: 28 }}>L</th>
+            <th style={{ ...TH_STYLE, textAlign: "center", width: 38 }}>GD</th>
+            <th style={{ ...TH_STYLE, textAlign: "center", width: 28 }}>GF</th>
+            <th style={{ ...TH_STYLE, textAlign: "center", width: 34 }}>PTS</th>
+            <th style={{ ...TH_STYLE, textAlign: "right", paddingRight: 16, width: 66, color: "#2BE38A" }}>QUAL%</th>
           </tr>
         </thead>
         <tbody>
           {group.standings.map((team: GroupStanding, i: number) => {
             const prob = advanceProbs[team.team_id];
+            const qualifying = i < 2;
+            const gdColor = team.gd > 0 ? "#2BE38A" : team.gd < 0 ? "#FF5D6A" : "#645F77";
+            const qualColor = prob >= 0.7 ? "#2BE38A" : prob >= 0.4 ? "#FFC23D" : "#645F77";
+
             return (
               <tr
                 key={team.team_id}
-                className={`border-b border-slate-800 last:border-0 ${i < 2 ? "bg-emerald-950/20" : ""}`}
+                style={{
+                  borderBottom: "1px solid rgba(255,255,255,0.04)",
+                  background: qualifying ? "rgba(43,227,138,0.04)" : "transparent",
+                }}
               >
-                <td className="py-2.5 px-4 flex items-center gap-2">
-                  {i < 2 ? (
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-                  ) : (
-                    <span className="w-1.5 shrink-0" />
-                  )}
-                  <Link
-                    href={`/teams/${team.team_id}`}
-                    className="font-medium text-slate-100 hover:text-emerald-400 transition-colors"
-                  >
-                    {team.team_name}
-                  </Link>
+                <td style={{ padding: "10px 6px 10px 16px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    {qualifying ? (
+                      <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#2BE38A", flexShrink: 0 }} />
+                    ) : (
+                      <span style={{ width: 6, flexShrink: 0 }} />
+                    )}
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={flagUrl(team.team_id, 40)}
+                      alt={team.team_id}
+                      style={{ width: 22, height: 15, borderRadius: 3, objectFit: "cover", border: "1px solid rgba(255,255,255,0.1)", flexShrink: 0 }}
+                    />
+                    <Link
+                      href={`/teams/${team.team_id}`}
+                      style={{ textDecoration: "none", color: "#F2F1F7", fontWeight: 600, fontSize: 14 }}
+                    >
+                      {team.team_name}
+                    </Link>
+                  </div>
                 </td>
-                <td className="text-center py-2.5 px-2 text-slate-400 tabular-nums">{team.played}</td>
-                <td className="text-center py-2.5 px-2 text-slate-300 tabular-nums">{team.won}</td>
-                <td className="text-center py-2.5 px-2 text-slate-400 tabular-nums">{team.drawn}</td>
-                <td className="text-center py-2.5 px-2 text-slate-500 tabular-nums">{team.lost}</td>
-                <td className={`text-center py-2.5 px-2 tabular-nums font-mono text-xs ${
-                  team.gd > 0 ? "text-emerald-400" : team.gd < 0 ? "text-red-400" : "text-slate-500"
-                }`}>
+                <td style={{ textAlign: "center", fontFamily: MONO, fontSize: 13, color: "#9E99B0" }}>{team.played}</td>
+                <td style={{ textAlign: "center", fontFamily: MONO, fontSize: 13, color: "#F2F1F7", fontWeight: 700 }}>{team.won}</td>
+                <td style={{ textAlign: "center", fontFamily: MONO, fontSize: 13, color: "#9E99B0" }}>{team.drawn}</td>
+                <td style={{ textAlign: "center", fontFamily: MONO, fontSize: 13, color: "#645F77" }}>{team.lost}</td>
+                <td style={{ textAlign: "center", fontFamily: MONO, fontSize: 13, color: gdColor, fontWeight: 600 }}>
                   {team.gd > 0 ? `+${team.gd}` : team.gd}
                 </td>
-                <td className="text-center py-2.5 px-2 text-slate-400 tabular-nums">{team.gf}</td>
-                <td className="text-right py-2.5 px-3 font-bold text-slate-100 tabular-nums">{team.points}</td>
-                <td className="text-right py-2.5 px-4 tabular-nums text-xs">
-                  {prob != null ? (
-                    <span className={
-                      prob >= 0.7 ? "text-emerald-400 font-semibold"
-                      : prob >= 0.4 ? "text-slate-300"
-                      : "text-slate-500"
-                    }>
-                      {(prob * 100).toFixed(0)}%
-                    </span>
-                  ) : (
-                    <span className="text-slate-700">—</span>
-                  )}
+                <td style={{ textAlign: "center", fontFamily: MONO, fontSize: 13, color: "#9E99B0" }}>{team.gf}</td>
+                <td style={{ textAlign: "center", fontFamily: MONO, fontSize: 14, color: "#F2F1F7", fontWeight: 800 }}>{team.points}</td>
+                <td style={{ textAlign: "right", paddingRight: 16, fontFamily: MONO, fontSize: 13, color: qualColor, fontWeight: prob >= 0.7 ? 700 : 400 }}>
+                  {prob != null ? `${Math.round(prob * 100)}%` : "—"}
                 </td>
               </tr>
             );
@@ -84,11 +112,7 @@ function GroupCard({
   );
 }
 
-// Sort third-placed teams by the official FIFA tiebreaker order:
-// points, then GD, then GF, then group letter (alphabetical) as final tiebreak.
-function rankThirdPlaced(
-  thirds: Array<{ group: string; team: GroupStanding }>
-) {
+function rankThirdPlaced(thirds: Array<{ group: string; team: GroupStanding }>) {
   return [...thirds].sort((a, b) => {
     if (b.team.points !== a.team.points) return b.team.points - a.team.points;
     if (b.team.gd !== a.team.gd) return b.team.gd - a.team.gd;
@@ -105,92 +129,99 @@ function ThirdPlacedTable({
   advanceProbs: Record<string, number>;
 }) {
   const ranked = rankThirdPlaced(thirds);
-  // In WC 2026, 8 best third-placed teams from 12 groups advance.
   const QUALIFY_SLOTS = 8;
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-      <div className="px-4 py-3 bg-slate-800/60 border-b border-slate-700">
-        <h2 className="text-sm font-bold text-slate-100 uppercase tracking-wider">
-          Best Third-Placed Teams
-        </h2>
-        <p className="text-xs text-slate-500 mt-0.5">
-          Top 8 of 12 advance to the Round of 32
-        </p>
+    <div style={{
+      background: "#120F1E",
+      border: "1px solid rgba(255,255,255,0.07)",
+      borderRadius: 16,
+      overflow: "hidden",
+      marginTop: 20,
+    }}>
+      <div style={{
+        background: "#15131F",
+        padding: "12px 18px",
+        borderBottom: "1px solid rgba(255,255,255,0.06)",
+      }}>
+        <span style={{ fontFamily: MONO, fontSize: 12, fontWeight: 700, letterSpacing: "0.14em", color: "#C8C3D6" }}>
+          BEST THIRD-PLACED TEAMS
+        </span>
+        <span style={{ marginLeft: 12, fontSize: 12, color: "#645F77" }}>Top 8 of 12 advance to the Round of 32</span>
       </div>
-      <table className="w-full text-sm">
+
+      <table style={{ width: "100%", borderCollapse: "collapse" }}>
         <thead>
-          <tr className="text-xs text-slate-500 uppercase tracking-wider border-b border-slate-800">
-            <th className="text-center py-2 px-3 w-8">#</th>
-            <th className="text-center py-2 px-2 w-10">Grp</th>
-            <th className="text-left py-2 px-4">Team</th>
-            <th className="text-center py-2 px-2">P</th>
-            <th className="text-center py-2 px-2">W</th>
-            <th className="text-center py-2 px-2">D</th>
-            <th className="text-center py-2 px-2">L</th>
-            <th className="text-center py-2 px-2">GD</th>
-            <th className="text-center py-2 px-2">GF</th>
-            <th className="text-right py-2 px-3 font-bold">Pts</th>
-            <th className="text-right py-2 px-4 text-emerald-600">Qualify</th>
+          <tr>
+            <th style={{ ...TH_STYLE, textAlign: "center", width: 36, paddingLeft: 16 }}>#</th>
+            <th style={{ ...TH_STYLE, textAlign: "center", width: 36 }}>GRP</th>
+            <th style={{ ...TH_STYLE, textAlign: "left", paddingLeft: 8 }}>TEAM</th>
+            <th style={{ ...TH_STYLE, textAlign: "center", width: 28 }}>P</th>
+            <th style={{ ...TH_STYLE, textAlign: "center", width: 28 }}>W</th>
+            <th style={{ ...TH_STYLE, textAlign: "center", width: 28 }}>D</th>
+            <th style={{ ...TH_STYLE, textAlign: "center", width: 28 }}>L</th>
+            <th style={{ ...TH_STYLE, textAlign: "center", width: 38 }}>GD</th>
+            <th style={{ ...TH_STYLE, textAlign: "center", width: 28 }}>GF</th>
+            <th style={{ ...TH_STYLE, textAlign: "center", width: 34 }}>PTS</th>
+            <th style={{ ...TH_STYLE, textAlign: "right", paddingRight: 16, width: 66, color: "#2BE38A" }}>QUAL%</th>
           </tr>
         </thead>
         <tbody>
           {ranked.map(({ group, team }, i) => {
             const qualifies = i < QUALIFY_SLOTS;
-            const onBubble = i === QUALIFY_SLOTS - 1; // last qualifying slot
+            const onBubble = i === QUALIFY_SLOTS - 1;
             const prob = advanceProbs[team.team_id];
+            const gdColor = team.gd > 0 ? "#2BE38A" : team.gd < 0 ? "#FF5D6A" : "#645F77";
+            const qualColor = prob >= 0.7 ? "#2BE38A" : prob >= 0.4 ? "#FFC23D" : "#645F77";
 
             return (
               <tr
                 key={team.team_id}
-                className={[
-                  "border-b border-slate-800 last:border-0",
-                  qualifies ? "bg-emerald-950/20" : "",
-                  onBubble ? "border-b-2 border-b-emerald-900" : "",
-                ].join(" ")}
+                style={{
+                  borderBottom: onBubble
+                    ? "2px solid rgba(43,227,138,0.2)"
+                    : "1px solid rgba(255,255,255,0.04)",
+                  background: qualifies ? "rgba(43,227,138,0.04)" : "transparent",
+                }}
               >
-                <td className="text-center py-2.5 px-3 text-slate-500 tabular-nums text-xs font-mono">
+                <td style={{ textAlign: "center", fontFamily: MONO, fontSize: 12, color: "#645F77", paddingLeft: 16 }}>
                   {i + 1}
                 </td>
-                <td className="text-center py-2.5 px-2 text-slate-500 text-xs font-bold">
+                <td style={{ textAlign: "center", fontFamily: MONO, fontSize: 12, fontWeight: 700, color: "#9E99B0" }}>
                   {group}
                 </td>
-                <td className="py-2.5 px-4 flex items-center gap-2">
-                  {qualifies ? (
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-                  ) : (
-                    <span className="w-1.5 shrink-0" />
-                  )}
-                  <Link
-                    href={`/teams/${team.team_id}`}
-                    className="font-medium text-slate-100 hover:text-emerald-400 transition-colors"
-                  >
-                    {team.team_name}
-                  </Link>
+                <td style={{ padding: "10px 6px 10px 8px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    {qualifies ? (
+                      <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#2BE38A", flexShrink: 0 }} />
+                    ) : (
+                      <span style={{ width: 6, flexShrink: 0 }} />
+                    )}
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={flagUrl(team.team_id, 40)}
+                      alt={team.team_id}
+                      style={{ width: 22, height: 15, borderRadius: 3, objectFit: "cover", border: "1px solid rgba(255,255,255,0.1)", flexShrink: 0 }}
+                    />
+                    <Link
+                      href={`/teams/${team.team_id}`}
+                      style={{ textDecoration: "none", color: "#F2F1F7", fontWeight: 600, fontSize: 14 }}
+                    >
+                      {team.team_name}
+                    </Link>
+                  </div>
                 </td>
-                <td className="text-center py-2.5 px-2 text-slate-400 tabular-nums">{team.played}</td>
-                <td className="text-center py-2.5 px-2 text-slate-300 tabular-nums">{team.won}</td>
-                <td className="text-center py-2.5 px-2 text-slate-400 tabular-nums">{team.drawn}</td>
-                <td className="text-center py-2.5 px-2 text-slate-500 tabular-nums">{team.lost}</td>
-                <td className={`text-center py-2.5 px-2 tabular-nums font-mono text-xs ${
-                  team.gd > 0 ? "text-emerald-400" : team.gd < 0 ? "text-red-400" : "text-slate-500"
-                }`}>
+                <td style={{ textAlign: "center", fontFamily: MONO, fontSize: 13, color: "#9E99B0" }}>{team.played}</td>
+                <td style={{ textAlign: "center", fontFamily: MONO, fontSize: 13, color: "#F2F1F7", fontWeight: 700 }}>{team.won}</td>
+                <td style={{ textAlign: "center", fontFamily: MONO, fontSize: 13, color: "#9E99B0" }}>{team.drawn}</td>
+                <td style={{ textAlign: "center", fontFamily: MONO, fontSize: 13, color: "#645F77" }}>{team.lost}</td>
+                <td style={{ textAlign: "center", fontFamily: MONO, fontSize: 13, color: gdColor, fontWeight: 600 }}>
                   {team.gd > 0 ? `+${team.gd}` : team.gd}
                 </td>
-                <td className="text-center py-2.5 px-2 text-slate-400 tabular-nums">{team.gf}</td>
-                <td className="text-right py-2.5 px-3 font-bold text-slate-100 tabular-nums">{team.points}</td>
-                <td className="text-right py-2.5 px-4 tabular-nums text-xs">
-                  {prob != null ? (
-                    <span className={
-                      prob >= 0.7 ? "text-emerald-400 font-semibold"
-                      : prob >= 0.4 ? "text-slate-300"
-                      : "text-slate-500"
-                    }>
-                      {(prob * 100).toFixed(0)}%
-                    </span>
-                  ) : (
-                    <span className="text-slate-700">—</span>
-                  )}
+                <td style={{ textAlign: "center", fontFamily: MONO, fontSize: 13, color: "#9E99B0" }}>{team.gf}</td>
+                <td style={{ textAlign: "center", fontFamily: MONO, fontSize: 14, color: "#F2F1F7", fontWeight: 800 }}>{team.points}</td>
+                <td style={{ textAlign: "right", paddingRight: 16, fontFamily: MONO, fontSize: 13, color: qualColor, fontWeight: prob >= 0.7 ? 700 : 400 }}>
+                  {prob != null ? `${Math.round(prob * 100)}%` : "—"}
                 </td>
               </tr>
             );
@@ -212,22 +243,21 @@ export default async function GroupsPage() {
     advanceProbs[t.team_id] = t.stage_probabilities.round_of_32;
   }
 
-  // Collect the 3rd-placed team from each group (index 2 in ranked standings).
   const thirds = groups
     .filter((g) => g.standings.length >= 3)
     .map((g) => ({ group: g.letter, team: g.standings[2] }));
 
   return (
-    <div className="space-y-6">
-      <p className="text-slate-400 text-sm">
+    <div>
+      <p style={{ color: "#9E99B0", fontSize: 14, margin: "0 0 24px" }}>
         Top 2 from each group advance · 8 best third-placed teams also advance
       </p>
 
       {groups.length === 0 ? (
-        <p className="text-slate-500 text-center py-16">Group data not available yet.</p>
+        <p style={{ color: "#645F77", textAlign: "center", padding: "64px 0" }}>Group data not available yet.</p>
       ) : (
         <>
-          <div className="grid gap-6 md:grid-cols-2">
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
             {groups.map((g) => (
               <GroupCard key={g.letter} group={g} advanceProbs={advanceProbs} />
             ))}
@@ -239,9 +269,11 @@ export default async function GroupsPage() {
         </>
       )}
 
-      <div className="flex items-center gap-4 text-xs text-slate-600">
-        <span><span className="text-emerald-500">●</span> On course to advance</span>
-        <span>Qualify % = simulated P(advance to Round of 32)</span>
+      <div style={{ display: "flex", alignItems: "center", gap: 18, marginTop: 22, fontSize: 12.5, color: "#645F77" }}>
+        <span>
+          <span style={{ color: "#2BE38A" }}>●</span> On course to advance
+        </span>
+        <span>QUAL% = simulated P(reach Round of 32)</span>
       </div>
     </div>
   );

@@ -1,5 +1,7 @@
 import type { MatchSummary } from "@/lib/types";
 
+const MONO = "'JetBrains Mono',monospace";
+
 interface Props {
   teamID: string;
   teamName: string;
@@ -17,40 +19,45 @@ function getResult(match: MatchSummary, teamID: string): Result | null {
   return won ? "W" : "L";
 }
 
-function ResultBadge({ result }: { result: Result }) {
-  const styles: Record<Result, string> = {
-    W: "bg-emerald-500/20 text-emerald-400 border-emerald-700/50",
-    D: "bg-slate-700/50 text-slate-400 border-slate-600/50",
-    L: "bg-red-500/20 text-red-400 border-red-700/50",
-  };
-  return (
-    <span
-      className={`w-7 h-7 flex items-center justify-center text-xs font-bold rounded border ${styles[result]}`}
-    >
-      {result}
-    </span>
-  );
-}
+const BADGE_STYLE: Record<Result, React.CSSProperties> = {
+  W: { background: "rgba(43,227,138,0.15)", color: "#2BE38A", border: "1px solid rgba(43,227,138,0.3)" },
+  D: { background: "rgba(255,255,255,0.06)", color: "#9E99B0", border: "1px solid rgba(255,255,255,0.1)" },
+  L: { background: "rgba(255,93,106,0.12)", color: "#FF5D6A", border: "1px solid rgba(255,93,106,0.25)" },
+};
 
 export default function TeamForm({ teamID, teamName, matches }: Props) {
   if (matches.length === 0) return null;
 
-  const reversed = [...matches].reverse(); // oldest first
+  const reversed = [...matches].reverse();
 
   return (
     <div>
-      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">
-        {teamName}
-      </p>
-      <div className="flex items-center gap-1.5">
+      <div style={{ fontFamily: MONO, fontSize: 11, fontWeight: 700, color: "#645F77", letterSpacing: "0.1em", marginBottom: 10 }}>
+        {teamName.toUpperCase()}
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
         {reversed.map((m) => {
           const result = getResult(m, teamID);
           if (!result) return null;
-          const opponent =
-            m.home_team.id === teamID ? m.away_team.name : m.home_team.name;
+          const opponent = m.home_team.id === teamID ? m.away_team.name : m.home_team.name;
           return (
-            <div key={m.id} title={`vs ${opponent}: ${result}`}>
-              <ResultBadge result={result} />
+            <div
+              key={m.id}
+              title={`vs ${opponent}: ${result}`}
+              style={{
+                width: 28,
+                height: 28,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontFamily: MONO,
+                fontSize: 12,
+                fontWeight: 800,
+                borderRadius: 6,
+                ...BADGE_STYLE[result],
+              }}
+            >
+              {result}
             </div>
           );
         })}

@@ -1,9 +1,5 @@
 import type { TriviaFact } from "@/lib/types";
 
-interface Props {
-  facts: TriviaFact[];
-}
-
 const TEMPLATE_ICONS: Record<string, string> = {
   head_to_head: "⚔",
   h2h_recent: "🕐",
@@ -15,24 +11,30 @@ const TEMPLATE_ICONS: Record<string, string> = {
   scoring_streak_away: "⚽",
 };
 
+interface Props {
+  facts: TriviaFact[];
+}
+
 export default function TriviaFacts({ facts }: Props) {
   if (!facts || facts.length === 0) return null;
 
   return (
-    <section className="rounded-xl border border-slate-700 bg-slate-800/50 p-5">
-      <h2 className="mb-4 text-sm font-semibold uppercase tracking-widest text-slate-400">
-        Pre-Match Facts
-      </h2>
-      <ul className="space-y-3">
+    <div style={{
+      background: "#120F1E",
+      border: "1px solid rgba(255,255,255,0.07)",
+      borderRadius: 16,
+      padding: "20px 24px",
+    }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {facts.map((fact, i) => (
-          <li key={i} className="flex gap-3">
-            <span className="mt-0.5 shrink-0 text-base" aria-hidden>
+          <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+            <span style={{ fontSize: 16, flexShrink: 0, lineHeight: 1, marginTop: 2 }} aria-hidden>
               {TEMPLATE_ICONS[fact.template] ?? "📊"}
             </span>
-            <p className="text-sm leading-relaxed text-slate-300">{fact.text}</p>
-          </li>
+            <p style={{ fontSize: 14, color: "#C8C3D6", lineHeight: 1.6, margin: 0 }}>{fact.text}</p>
+          </div>
         ))}
-      </ul>
-    </section>
+      </div>
+    </div>
   );
 }

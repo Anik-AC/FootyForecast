@@ -1,5 +1,7 @@
 import type { ScorelineProbability } from "@/lib/types";
 
+const MONO = "'JetBrains Mono',monospace";
+
 interface Props {
   grid: ScorelineProbability[];
   homeTeam: string;
@@ -14,9 +16,9 @@ function outcome(home: number, away: number): "home" | "draw" | "away" {
 }
 
 function barColor(o: "home" | "draw" | "away"): string {
-  if (o === "home") return "bg-emerald-500";
-  if (o === "draw") return "bg-amber-500";
-  return "bg-rose-500";
+  if (o === "home") return "#2BE38A";
+  if (o === "draw") return "#FFC23D";
+  return "#5B8CFF";
 }
 
 export default function TopScorelines({ grid, homeTeam, awayTeam, topN = 5 }: Props) {
@@ -29,7 +31,7 @@ export default function TopScorelines({ grid, homeTeam, awayTeam, topN = 5 }: Pr
   const maxProb = top[0].probability;
 
   return (
-    <div className="space-y-3">
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       {top.map((cell, i) => {
         const o = outcome(cell.home_goals, cell.away_goals);
         const pct = (cell.probability * 100).toFixed(1);
@@ -37,16 +39,20 @@ export default function TopScorelines({ grid, homeTeam, awayTeam, topN = 5 }: Pr
 
         return (
           <div key={i}>
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-sm font-semibold text-slate-100">
-                {homeTeam} {cell.home_goals} &ndash; {cell.away_goals} {awayTeam}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 7 }}>
+              <span style={{ fontSize: 14, fontWeight: 600, color: "#F2F1F7" }}>
+                {homeTeam} {cell.home_goals} – {cell.away_goals} {awayTeam}
               </span>
-              <span className="text-sm font-bold text-emerald-400 tabular-nums">{pct}%</span>
+              <span style={{ fontFamily: MONO, fontSize: 14, fontWeight: 700, color: barColor(o) }}>{pct}%</span>
             </div>
-            <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+            <div style={{ height: 6, background: "#1D1A2A", borderRadius: 99, overflow: "hidden" }}>
               <div
-                className={`h-full rounded-full ${barColor(o)}`}
-                style={{ width: `${barW}%` }}
+                style={{
+                  height: "100%",
+                  borderRadius: 99,
+                  width: `${barW}%`,
+                  background: barColor(o),
+                }}
               />
             </div>
           </div>

@@ -1,61 +1,126 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 export function NavDropdown() {
   const [open, setOpen] = useState(false);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const ref = useRef<HTMLDivElement>(null);
+  const pathname = usePathname();
+  const isActive = pathname.startsWith("/standings");
 
-  function handleMouseEnter() {
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    setOpen(true);
-  }
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
-  function handleMouseLeave() {
-    timeoutRef.current = setTimeout(() => setOpen(false), 120);
-  }
+  const activeStyle: React.CSSProperties = {
+    color: "#2BE38A",
+    background: "linear-gradient(180deg, rgba(43,227,138,0.18), rgba(43,227,138,0.05))",
+    border: "1px solid rgba(43,227,138,0.38)",
+    boxShadow: "0 2px 16px rgba(43,227,138,0.16)",
+    fontWeight: 700,
+  };
+  const inactiveStyle: React.CSSProperties = {
+    color: "#9E99B0",
+    background: "transparent",
+    border: "1px solid transparent",
+    fontWeight: 500,
+  };
 
   return (
-    <div
-      className="relative"
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
-    >
+    <div ref={ref} style={{ position: "relative" }}>
       <button
-        className="flex items-center gap-1 text-sm text-slate-400 hover:text-slate-100 transition-colors"
-        aria-expanded={open}
-        aria-haspopup="true"
+        onClick={() => setOpen((o) => !o)}
+        className="ff-nav-item"
+        style={{
+          cursor: "pointer",
+          transition: "all .18s",
+          padding: "8px 14px",
+          borderRadius: 11,
+          fontSize: 14.5,
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          ...(isActive ? activeStyle : inactiveStyle),
+        }}
       >
-        Standings
+        <span>Standings</span>
         <svg
-          className={`w-3 h-3 transition-transform ${open ? "rotate-180" : ""}`}
-          fill="none"
+          width="13"
+          height="13"
           viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={2}
+          fill="none"
+          style={{ transition: "transform .18s", transform: open ? "rotate(180deg)" : "none" }}
         >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+          <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </button>
 
       {open && (
-        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1.5 bg-slate-900 border border-slate-700 rounded-lg py-1 min-w-[130px] shadow-xl z-20">
-          <Link
-            href="/standings/groups"
-            className="block px-4 py-2 text-sm text-slate-300 hover:text-slate-100 hover:bg-slate-800 transition-colors"
+        <>
+          <div
             onClick={() => setOpen(false)}
+            style={{ position: "fixed", inset: 0, zIndex: 40 }}
+          />
+          <div
+            style={{
+              position: "absolute",
+              top: "calc(100% + 10px)",
+              right: 0,
+              zIndex: 60,
+              minWidth: 184,
+              background: "#15131F",
+              border: "1px solid rgba(255,255,255,0.12)",
+              borderRadius: 14,
+              padding: 7,
+              boxShadow: "0 18px 44px rgba(0,0,0,0.55)",
+            }}
           >
-            Groups
-          </Link>
-          <Link
-            href="/standings/knockout"
-            className="block px-4 py-2 text-sm text-slate-300 hover:text-slate-100 hover:bg-slate-800 transition-colors"
-            onClick={() => setOpen(false)}
-          >
-            Knockout
-          </Link>
-        </div>
+            <Link
+              href="/standings/groups"
+              onClick={() => setOpen(false)}
+              className="ff-nav-item"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 11,
+                padding: "11px 13px",
+                borderRadius: 9,
+                fontSize: 14.5,
+                fontWeight: 600,
+                color: "#C8C3D6",
+                textDecoration: "none",
+              }}
+            >
+              <span style={{ width: 7, height: 7, borderRadius: 2, background: "#2BE38A", flexShrink: 0 }} />
+              Groups
+            </Link>
+            <Link
+              href="/standings/knockout"
+              onClick={() => setOpen(false)}
+              className="ff-nav-item"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 11,
+                padding: "11px 13px",
+                borderRadius: 9,
+                fontSize: 14.5,
+                fontWeight: 600,
+                color: "#C8C3D6",
+                textDecoration: "none",
+              }}
+            >
+              <span style={{ width: 7, height: 7, borderRadius: 2, background: "#FFC23D", flexShrink: 0 }} />
+              Knockout
+            </Link>
+          </div>
+        </>
       )}
     </div>
   );

@@ -29,13 +29,38 @@ import ForecastCard from "@/components/ForecastCard";
 import TeamForm from "@/components/TeamForm";
 import HeadToHead from "@/components/HeadToHead";
 import LocalTime from "@/components/LocalTime";
+import { flagUrl } from "@/lib/flags";
 import type { MatchEvent } from "@/lib/types";
+
+const MONO = "'JetBrains Mono',monospace";
 
 interface PageProps {
   params: Promise<{ id: string }>;
 }
 
-// ── Match events ──────────────────────────────────────────────────────────────
+function SectionHeader({ color, label }: { color: string; label: string }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 13, margin: "36px 0 16px" }}>
+      <span style={{ width: 4, height: 16, borderRadius: 99, background: color }} />
+      <h2 style={{ fontSize: 13, fontWeight: 700, letterSpacing: "0.14em", color: "#C8C3D6", margin: 0 }}>{label}</h2>
+      <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.07)" }} />
+    </div>
+  );
+}
+
+function StatBox({ label, value, color }: { label: string; value: string; color?: string }) {
+  return (
+    <div style={{
+      background: "#1D1A2A",
+      borderRadius: 12,
+      padding: "14px 10px",
+      textAlign: "center",
+    }}>
+      <div style={{ fontFamily: MONO, fontSize: 20, fontWeight: 800, color: color ?? "#F2F1F7" }}>{value}</div>
+      <div style={{ fontSize: 12, color: "#645F77", marginTop: 5 }}>{label}</div>
+    </div>
+  );
+}
 
 function eventIcon(type: string): string {
   switch (type) {
@@ -53,12 +78,12 @@ function eventIcon(type: string): string {
 }
 
 function eventColor(type: string): string {
-  if (type === "goal") return "text-emerald-300";
-  if (type === "own_goal") return "text-red-400";
-  if (type === "red_card" || type === "yellow_red_card") return "text-red-400";
-  if (type === "yellow_card") return "text-yellow-300";
-  if (type === "drinks_break") return "text-amber-400";
-  return "text-slate-300";
+  if (type === "goal") return "#2BE38A";
+  if (type === "own_goal") return "#FF5D6A";
+  if (type === "red_card" || type === "yellow_red_card") return "#FF5D6A";
+  if (type === "yellow_card") return "#FFC23D";
+  if (type === "drinks_break") return "#FFC23D";
+  return "#C8C3D6";
 }
 
 function MatchEventsCard({
@@ -70,7 +95,6 @@ function MatchEventsCard({
   homeTeam: string;
   awayTeam: string;
 }) {
-  // Deduplicate: for repeated (minute, incident_type) pairs keep the one with more detail.
   const seen = new Map<string, MatchEvent>();
   for (const ev of events) {
     const key = `${ev.minute}-${ev.incident_type}`;
@@ -82,46 +106,44 @@ function MatchEventsCard({
   const deduped = Array.from(seen.values()).sort((a, b) => a.minute - b.minute);
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
-      <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">
-        Match Events
-      </h2>
-      <div className="space-y-2.5">
+    <div style={{
+      background: "#120F1E",
+      border: "1px solid rgba(255,255,255,0.07)",
+      borderRadius: 16,
+      padding: "22px 24px",
+    }}>
+      <SectionHeader color="#5B8CFF" label="MATCH EVENTS" />
+      <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
         {deduped.map((ev, i) => {
-          const icon = eventIcon(ev.incident_type);
-          const color = eventColor(ev.incident_type);
-          const team = ev.is_home ? homeTeam : awayTeam;
           const isDrinks = ev.incident_type === "drinks_break";
+          const team = ev.is_home ? homeTeam : awayTeam;
 
           return (
-            <div key={i} className="flex gap-3 text-sm items-baseline">
-              <span className="font-mono text-slate-500 w-10 shrink-0 text-right tabular-nums text-xs">
-                {ev.minute}&apos;
-                {ev.added_time != null && (
-                  <span className="text-slate-700">+{ev.added_time}</span>
-                )}
+            <div key={i} style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
+              <span style={{ fontFamily: MONO, fontSize: 12, color: "#4A4560", width: 36, flexShrink: 0, textAlign: "right" }}>
+                {ev.minute}{ev.added_time != null ? `+${ev.added_time}` : ""}&apos;
               </span>
-              <span className="w-5 shrink-0 text-center text-base leading-none">{icon}</span>
-              <span className={`flex-1 min-w-0 ${color}`}>
+              <span style={{ fontSize: 14, flexShrink: 0, lineHeight: 1, minWidth: 20, textAlign: "center" }}>
+                {eventIcon(ev.incident_type)}
+              </span>
+              <span style={{ fontSize: 13.5, color: eventColor(ev.incident_type), flex: 1, minWidth: 0 }}>
                 {!isDrinks && (
-                  <span className="text-slate-500 text-xs mr-1.5 font-normal">{team}</span>
+                  <span style={{ color: "#645F77", marginRight: 6, fontSize: 12 }}>{team}</span>
                 )}
                 {ev.player_name && (
-                  <span className="font-semibold">{ev.player_name}</span>
+                  <span style={{ fontWeight: 700 }}>{ev.player_name}</span>
                 )}
                 {ev.assist_player && (
-                  <span className="text-slate-500 text-xs ml-1.5">
-                    (A: {ev.assist_player})
-                  </span>
+                  <span style={{ color: "#645F77", fontSize: 12, marginLeft: 6 }}>(A: {ev.assist_player})</span>
                 )}
                 {ev.incident_type === "own_goal" && (
-                  <span className="text-xs ml-1 text-red-500">OG</span>
+                  <span style={{ fontSize: 11, color: "#FF5D6A", marginLeft: 5 }}>OG</span>
                 )}
                 {ev.detail && (
-                  <span className="text-slate-500 text-xs ml-1.5">{ev.detail}</span>
+                  <span style={{ color: "#645F77", fontSize: 12, marginLeft: 5 }}>{ev.detail}</span>
                 )}
                 {isDrinks && (
-                  <span className="text-amber-400 text-xs font-medium">Hydration break</span>
+                  <span style={{ fontWeight: 600 }}>Hydration break</span>
                 )}
               </span>
             </div>
@@ -131,8 +153,6 @@ function MatchEventsCard({
     </div>
   );
 }
-
-// ── Match facts (computed from events, shown in place of LLM trivia) ──────────
 
 function MatchFacts({
   events,
@@ -152,12 +172,8 @@ function MatchFacts({
   const reds = events.filter((e) => e.incident_type === "red_card" || e.incident_type === "yellow_red_card");
   const breaks = events.filter((e) => e.incident_type === "drinks_break");
   const subs = events.filter((e) => e.incident_type === "substitution");
-
-  // Deduplicate break minutes
   const breakMinutes = Array.from(new Set(breaks.map((b) => b.minute)));
-
   const firstGoal = goals[0];
-  const lastGoal = goals[goals.length - 1];
 
   const facts: { icon: string; text: string }[] = [];
 
@@ -165,13 +181,14 @@ function MatchFacts({
     facts.push({ icon: "🤝", text: "A goalless draw — clean sheets for both keepers" });
   } else {
     if (firstGoal) {
-      const scorer = firstGoal.player_name ? `${firstGoal.player_name} (${firstGoal.is_home ? homeTeam : awayTeam})` : (firstGoal.is_home ? homeTeam : awayTeam);
+      const scorer = firstGoal.player_name
+        ? `${firstGoal.player_name} (${firstGoal.is_home ? homeTeam : awayTeam})`
+        : (firstGoal.is_home ? homeTeam : awayTeam);
       facts.push({ icon: "⚽", text: `First goal: ${scorer} in the ${firstGoal.minute}&apos; minute` });
     }
-    if (goals.length > 1 && lastGoal && lastGoal !== firstGoal) {
+    if (goals.length > 1) {
       facts.push({ icon: "🎯", text: `${goals.length} goals scored in total` });
     }
-    const homeGls = goals.filter((g) => g.is_home && g.incident_type === "goal").length;
     const ownGoals = goals.filter((g) => g.incident_type === "own_goal").length;
     if (ownGoals > 0) {
       facts.push({ icon: "🙈", text: `${ownGoals} own goal${ownGoals > 1 ? "s" : ""}` });
@@ -181,51 +198,34 @@ function MatchFacts({
     } else if (awayGoals === 0) {
       facts.push({ icon: "🧤", text: `Clean sheet for ${homeTeam}` });
     }
-    void homeGls;
   }
 
-  if (yellows.length > 0) {
-    facts.push({ icon: "🟨", text: `${yellows.length} yellow card${yellows.length > 1 ? "s" : ""} shown` });
-  }
-  if (reds.length > 0) {
-    facts.push({ icon: "🟥", text: `${reds.length} red card${reds.length > 1 ? "s" : ""} — ${reds.map((r) => r.player_name ?? (r.is_home ? homeTeam : awayTeam)).join(", ")}` });
-  }
-  if (subs.length > 0) {
-    facts.push({ icon: "↔", text: `${subs.length} substitution${subs.length > 1 ? "s" : ""}` });
-  }
-  if (breakMinutes.length > 0) {
-    facts.push({ icon: "💧", text: `${breakMinutes.length} hydration break${breakMinutes.length > 1 ? "s" : ""} — ${breakMinutes.map((m) => `${m}'`).join(", ")}` });
-  }
+  if (yellows.length > 0) facts.push({ icon: "🟨", text: `${yellows.length} yellow card${yellows.length > 1 ? "s" : ""} shown` });
+  if (reds.length > 0) facts.push({ icon: "🟥", text: `${reds.length} red card${reds.length > 1 ? "s" : ""} — ${reds.map((r) => r.player_name ?? (r.is_home ? homeTeam : awayTeam)).join(", ")}` });
+  if (subs.length > 0) facts.push({ icon: "↔", text: `${subs.length} substitution${subs.length > 1 ? "s" : ""}` });
+  if (breakMinutes.length > 0) facts.push({ icon: "💧", text: `${breakMinutes.length} hydration break${breakMinutes.length > 1 ? "s" : ""} — ${breakMinutes.map((m) => `${m}'`).join(", ")}` });
 
   if (facts.length === 0) return null;
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
-      <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">
-        Match Facts
-      </h2>
-      <div className="space-y-2.5">
+    <div style={{
+      background: "#120F1E",
+      border: "1px solid rgba(255,255,255,0.07)",
+      borderRadius: 16,
+      padding: "22px 24px",
+    }}>
+      <SectionHeader color="#1FD0C0" label="MATCH FACTS" />
+      <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
         {facts.map((f, i) => (
-          <div key={i} className="flex items-start gap-3 text-sm">
-            <span className="text-base shrink-0 leading-none mt-0.5">{f.icon}</span>
+          <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+            <span style={{ fontSize: 16, flexShrink: 0, lineHeight: 1 }}>{f.icon}</span>
             <span
-              className="text-slate-300"
+              style={{ fontSize: 14, color: "#C8C3D6", lineHeight: 1.5 }}
               dangerouslySetInnerHTML={{ __html: f.text }}
             />
           </div>
         ))}
       </div>
-    </div>
-  );
-}
-
-// ── Shared ────────────────────────────────────────────────────────────────────
-
-function StatBox({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="bg-slate-900 rounded-lg p-4 text-center">
-      <div className="text-2xl font-bold text-slate-100">{value}</div>
-      <div className="text-xs text-slate-500 mt-1">{label}</div>
     </div>
   );
 }
@@ -249,7 +249,6 @@ export default async function MatchDetailPage({ params }: PageProps) {
 
   const isCompleted = !!prediction.actual_result;
 
-  // Only fetch form and H2H for upcoming matches (not needed post-match).
   const [homeForm, awayForm, h2h] = isCompleted
     ? [[], [], null]
     : await Promise.all([
@@ -266,160 +265,224 @@ export default async function MatchDetailPage({ params }: PageProps) {
       ? Math.round(prediction.home_elo - prediction.away_elo)
       : null;
 
+  const homeWon = isCompleted && prediction.actual_result!.home_goals > prediction.actual_result!.away_goals;
+  const awayWon = isCompleted && prediction.actual_result!.away_goals > prediction.actual_result!.home_goals;
+
   return (
-    <main className="max-w-3xl mx-auto px-4 py-8 space-y-8">
+    <div style={{ animation: "ff-up 0.4s ease both", paddingTop: 32, maxWidth: 740, margin: "0 auto" }}>
       {/* Back link */}
-      <Link href="/" className="text-sm text-slate-500 hover:text-slate-300 transition-colors">
-        &larr; All matches
+      <Link href="/" style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        fontFamily: MONO,
+        fontSize: 13,
+        color: "#7E7892",
+        textDecoration: "none",
+        marginBottom: 24,
+      }}>
+        ← All matches
       </Link>
 
-      {/* Match header */}
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
-        <div className="text-xs text-slate-500 mb-4 text-center"><LocalTime iso={prediction.match_date} variant="datetime" /></div>
-
-        {/* Teams and score / vs */}
-        <div className="flex items-center justify-center gap-6">
-          <div className="flex-1 text-right">
-            <div className="text-xl font-bold text-slate-100">{home_team.name}</div>
-            <div className="text-sm text-slate-500">{home_team.id}</div>
-            {prediction.home_elo != null && (
-              <div className="text-xs text-slate-600 mt-0.5">Elo {Math.round(prediction.home_elo)}</div>
-            )}
-          </div>
-
-          {isCompleted ? (
-            <div className="text-center">
-              <div className="text-3xl font-bold tabular-nums text-slate-100">
-                {prediction.actual_result!.home_goals}
-                <span className="text-slate-500 mx-2">–</span>
-                {prediction.actual_result!.away_goals}
-              </div>
-              <div className="text-xs font-semibold text-emerald-400 uppercase tracking-widest mt-1">
-                Full Time
-              </div>
-              {eloDelta !== null && Math.abs(eloDelta) > 5 && (
-                <div className="mt-2 text-[10px] text-slate-500">
-                  <span className={eloDelta > 0 ? "text-emerald-400 font-semibold" : "text-blue-400 font-semibold"}>
-                    {eloDelta > 0
-                      ? `${home_team.id} +${eloDelta}`
-                      : `${away_team.id} +${Math.abs(eloDelta)}`}
-                  </span>
-                  {" "}Elo advantage
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="text-center">
-              <div className="text-slate-600 font-semibold text-lg">vs</div>
-              {eloDelta !== null && Math.abs(eloDelta) > 5 && (
-                <div className="mt-2 text-[10px] text-slate-500">
-                  <span className={eloDelta > 0 ? "text-emerald-400 font-semibold" : "text-blue-400 font-semibold"}>
-                    {eloDelta > 0
-                      ? `${home_team.id} +${eloDelta}`
-                      : `${away_team.id} +${Math.abs(eloDelta)}`}
-                  </span>
-                  {" "}Elo advantage
-                </div>
-              )}
-            </div>
-          )}
-
-          <div className="flex-1 text-left">
-            <div className="text-xl font-bold text-slate-100">{away_team.name}</div>
-            <div className="text-sm text-slate-500">{away_team.id}</div>
-            {prediction.away_elo != null && (
-              <div className="text-xs text-slate-600 mt-0.5">Elo {Math.round(prediction.away_elo)}</div>
-            )}
-          </div>
+      {/* Match hero card */}
+      <div style={{
+        background: "#15131F",
+        border: "1px solid rgba(255,255,255,0.09)",
+        borderRadius: 20,
+        overflow: "hidden",
+      }}>
+        {/* Stage + time strip */}
+        <div style={{
+          background: "#120F1E",
+          padding: "12px 28px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          borderBottom: "1px solid rgba(255,255,255,0.06)",
+        }}>
+          <span style={{ fontFamily: MONO, fontSize: 12, color: "#7E7892" }}>
+            FIFA World Cup 2026
+          </span>
+          <span style={{ fontFamily: MONO, fontSize: 12, color: "#645F77" }}>
+            <LocalTime iso={prediction.match_date} variant="datetime" />
+          </span>
         </div>
 
-        {/* Outcome probability bar */}
-        <div className="mt-6">
-          <div className="text-xs text-slate-600 text-center mb-2 uppercase tracking-wider">
-            {isCompleted ? "Pre-match model probabilities" : "Model probabilities"}
-          </div>
-          <ProbabilityBar
-            probs={probs}
-            homeLabel={home_team.id}
-            awayLabel={away_team.id}
-          />
-        </div>
+        {/* Teams + score */}
+        <div style={{ padding: "32px 28px 28px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", gap: 20 }}>
+            {/* Home team */}
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 12 }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={flagUrl(home_team.id, 160)}
+                alt={home_team.id}
+                style={{ width: 88, height: 59, borderRadius: 10, objectFit: "cover", border: "1px solid rgba(255,255,255,0.14)", boxShadow: "0 6px 20px rgba(0,0,0,0.4)" }}
+              />
+              <div>
+                <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-0.02em", color: awayWon ? "#7E7892" : "#F2F1F7", lineHeight: 1.1 }}>
+                  {home_team.name}
+                </div>
+                {prediction.home_elo != null && (
+                  <div style={{ fontFamily: MONO, fontSize: 11.5, color: "#645F77", marginTop: 4 }}>
+                    Elo {Math.round(prediction.home_elo)}
+                  </div>
+                )}
+              </div>
+            </div>
 
-        {/* Win / Draw / Away % */}
-        <div className="grid grid-cols-3 gap-3 mt-4">
-          <StatBox label={`${home_team.id} win`} value={`${(probs.home_win * 100).toFixed(1)}%`} />
-          <StatBox label="Draw" value={`${(probs.draw * 100).toFixed(1)}%`} />
-          <StatBox label={`${away_team.id} win`} value={`${(probs.away_win * 100).toFixed(1)}%`} />
+            {/* Score or VS */}
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
+              {isCompleted ? (
+                <>
+                  <div style={{
+                    fontFamily: MONO,
+                    fontSize: 44,
+                    fontWeight: 800,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 14,
+                    letterSpacing: "-0.03em",
+                  }}>
+                    <span style={{ color: homeWon ? "#2BE38A" : "#F2F1F7" }}>
+                      {prediction.actual_result!.home_goals}
+                    </span>
+                    <span style={{ color: "#3F3A52", fontSize: 30 }}>–</span>
+                    <span style={{ color: awayWon ? "#2BE38A" : "#F2F1F7" }}>
+                      {prediction.actual_result!.away_goals}
+                    </span>
+                  </div>
+                  <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 700, color: "#2BE38A", letterSpacing: "0.12em" }}>
+                    FULL TIME
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span style={{ fontFamily: MONO, fontSize: 14, color: "#4A4560", letterSpacing: "0.1em" }}>VS</span>
+                  {eloDelta !== null && Math.abs(eloDelta) > 5 && (
+                    <div style={{ fontFamily: MONO, fontSize: 11, color: eloDelta > 0 ? "#2BE38A" : "#5B8CFF" }}>
+                      {eloDelta > 0
+                        ? `${home_team.id} +${eloDelta}`
+                        : `${away_team.id} +${Math.abs(eloDelta)}`} Elo
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* Away team */}
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 12 }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={flagUrl(away_team.id, 160)}
+                alt={away_team.id}
+                style={{ width: 88, height: 59, borderRadius: 10, objectFit: "cover", border: "1px solid rgba(255,255,255,0.14)", boxShadow: "0 6px 20px rgba(0,0,0,0.4)" }}
+              />
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-0.02em", color: homeWon ? "#7E7892" : "#F2F1F7", lineHeight: 1.1 }}>
+                  {away_team.name}
+                </div>
+                {prediction.away_elo != null && (
+                  <div style={{ fontFamily: MONO, fontSize: 11.5, color: "#645F77", marginTop: 4 }}>
+                    Elo {Math.round(prediction.away_elo)}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Probability bar */}
+          <div style={{ marginTop: 28 }}>
+            <div style={{ fontFamily: MONO, fontSize: 11, color: "#4A4560", textAlign: "center", marginBottom: 10, letterSpacing: "0.08em" }}>
+              {isCompleted ? "PRE-MATCH MODEL PROBABILITIES" : "MODEL PROBABILITIES"}
+            </div>
+            <ProbabilityBar probs={probs} homeLabel={home_team.id} awayLabel={away_team.id} />
+          </div>
+
+          {/* Stat boxes */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginTop: 16 }}>
+            <StatBox label={`${home_team.id} win`} value={`${(probs.home_win * 100).toFixed(1)}%`} color="#2BE38A" />
+            <StatBox label="Draw" value={`${(probs.draw * 100).toFixed(1)}%`} color="#FFC23D" />
+            <StatBox label={`${away_team.id} win`} value={`${(probs.away_win * 100).toFixed(1)}%`} color="#5B8CFF" />
+          </div>
         </div>
       </div>
 
-      {/* ── COMPLETED MATCH SECTIONS ────────────────────────────────────── */}
+      {/* ── COMPLETED MATCH SECTIONS ── */}
       {isCompleted && (
         <>
-          {/* Post-match verdict: how did the model do? Was this an upset? */}
           {prediction.grading && (
-            <PostMatchScorecard
-              grading={prediction.grading}
-              modelProbs={prediction.outcome_probabilities}
-              homeTeam={home_team}
-              awayTeam={away_team}
-              tournamentMeanLogLoss={calibration?.model_mean_log_loss}
-            />
+            <>
+              <SectionHeader color="#A35CFF" label="MODEL VERDICT" />
+              <PostMatchScorecard
+                grading={prediction.grading}
+                modelProbs={prediction.outcome_probabilities}
+                homeTeam={home_team}
+                awayTeam={away_team}
+                tournamentMeanLogLoss={calibration?.model_mean_log_loss}
+              />
+            </>
           )}
 
-          {/* LLM post-match analysis with hydration break detection */}
           {analysis && (
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
-              <div className="flex items-center gap-2 mb-3">
-                <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider">
-                  Match Analysis
-                </h2>
+            <>
+              <SectionHeader color="#5B8CFF" label="MATCH ANALYSIS" />
+              <div style={{
+                background: "#120F1E",
+                border: "1px solid rgba(255,255,255,0.07)",
+                borderRadius: 16,
+                padding: "20px 24px",
+              }}>
                 {analysis.has_hydration_break && (
-                  <span className="text-xs bg-amber-900/40 text-amber-300 border border-amber-700/50 rounded px-2 py-0.5">
-                    Hydration break detected
-                    {analysis.hydration_break_minute != null && ` (${analysis.hydration_break_minute}')`}
+                  <span style={{
+                    display: "inline-block",
+                    fontFamily: MONO,
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    color: "#FFC23D",
+                    background: "rgba(255,194,61,0.1)",
+                    border: "1px solid rgba(255,194,61,0.22)",
+                    padding: "3px 10px",
+                    borderRadius: 7,
+                    marginBottom: 14,
+                  }}>
+                    💧 Hydration break detected{analysis.hydration_break_minute != null && ` (${analysis.hydration_break_minute}')`}
                   </span>
                 )}
+                <p style={{ fontSize: 14.5, color: "#C8C3D6", lineHeight: 1.7, margin: 0, whiteSpace: "pre-line" }}>
+                  {analysis.analysis_text}
+                </p>
+                <div style={{ fontFamily: MONO, fontSize: 11.5, color: "#4A4560", marginTop: 14 }}>
+                  Generated {new Date(analysis.generated_at).toLocaleDateString()}
+                </div>
               </div>
-              <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-line">
-                {analysis.analysis_text}
-              </p>
-              <div className="text-xs text-slate-600 mt-3">
-                Generated {new Date(analysis.generated_at).toLocaleDateString()}
-              </div>
-            </div>
+            </>
           )}
 
-          {/* Momentum chart */}
           {momentum.length > 0 && (
-            <MomentumChart
-              data={momentum}
-              homeTeam={home_team.name}
-              awayTeam={away_team.name}
-              breakMinutes={events
-                .filter((e) => e.incident_type === "drinks_break")
-                .map((e) => e.minute)}
-              goalEvents={events
-                .filter((e) => e.incident_type === "goal" || e.incident_type === "own_goal")
-                .map((e) => ({ minute: e.minute, isHome: e.is_home }))}
-            />
+            <>
+              <SectionHeader color="#A35CFF" label="MOMENTUM" />
+              <MomentumChart
+                data={momentum}
+                homeTeam={home_team.name}
+                awayTeam={away_team.name}
+                breakMinutes={events.filter((e) => e.incident_type === "drinks_break").map((e) => e.minute)}
+                goalEvents={events.filter((e) => e.incident_type === "goal" || e.incident_type === "own_goal").map((e) => ({ minute: e.minute, isHome: e.is_home }))}
+              />
+            </>
           )}
 
-          {/* Bi-directional team stat bars */}
           {matchStats.length > 0 && (
-            <MatchStatBars
-              stats={matchStats}
-              homeTeam={home_team.name}
-              awayTeam={away_team.name}
-            />
+            <>
+              <SectionHeader color="#5B8CFF" label="MATCH STATISTICS" />
+              <MatchStatBars stats={matchStats} homeTeam={home_team.name} awayTeam={away_team.name} />
+            </>
           )}
 
-          {/* Key match events (goals, cards, subs, hydration breaks) */}
           {events.length > 0 && (
             <MatchEventsCard events={events} homeTeam={home_team.name} awayTeam={away_team.name} />
           )}
 
-          {/* Computed match facts derived from event data */}
           <MatchFacts
             events={events}
             homeTeam={home_team.name}
@@ -428,135 +491,134 @@ export default async function MatchDetailPage({ params }: PageProps) {
             awayGoals={prediction.actual_result!.away_goals}
           />
 
-          {/* Market comparison — only when market data exists */}
           {hasMarketData && (
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
-              <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">
-                Model vs Market
-              </h2>
-              <MarketPanel data={market!} />
-            </div>
+            <>
+              <SectionHeader color="#FFC23D" label="MODEL VS MARKET" />
+              <div style={{ background: "#120F1E", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 16, padding: "20px 24px" }}>
+                <MarketPanel data={market!} />
+              </div>
+            </>
           )}
 
-          {/* Pre-match scorer predictions for context */}
           {scorers && (
-            <div>
-              <p className="text-xs text-slate-600 uppercase tracking-wider mb-2 pl-1">
-                Pre-match scorer predictions
-              </p>
+            <>
+              <SectionHeader color="#2BE38A" label="PRE-MATCH SCORER PREDICTIONS" />
               <PlayerScorers data={scorers} />
-            </div>
+            </>
           )}
 
-          {/* Historical context: trivia and pre-match preview */}
-          {(trivia && trivia.facts.length > 0) && (
-            <TriviaFacts facts={trivia.facts} />
+          {trivia && trivia.facts.length > 0 && (
+            <>
+              <SectionHeader color="#1FD0C0" label="MATCH TRIVIA" />
+              <TriviaFacts facts={trivia.facts} />
+            </>
           )}
-          {preview && <MatchPreviewCard preview={preview} />}
+          {preview && (
+            <>
+              <SectionHeader color="#9E99B0" label="MATCH PREVIEW" />
+              <MatchPreviewCard preview={preview} />
+            </>
+          )}
         </>
       )}
 
-      {/* ── UPCOMING MATCH SECTIONS ─────────────────────────────────────── */}
+      {/* ── UPCOMING MATCH SECTIONS ── */}
       {!isCompleted && (
         <>
-          {/* Recent form */}
           {(homeForm.length > 0 || awayForm.length > 0) && (
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
-              <h2 className="text-sm font-extrabold text-slate-100 uppercase tracking-widest mb-4">
-                Recent Form
-              </h2>
-              <div className="flex gap-8">
-                {homeForm.length > 0 && (
-                  <TeamForm
-                    teamID={home_team.id}
-                    teamName={home_team.name}
-                    matches={homeForm}
-                  />
-                )}
-                {awayForm.length > 0 && (
-                  <TeamForm
-                    teamID={away_team.id}
-                    teamName={away_team.name}
-                    matches={awayForm}
-                  />
-                )}
+            <>
+              <SectionHeader color="#2BE38A" label="RECENT FORM" />
+              <div style={{
+                background: "#120F1E",
+                border: "1px solid rgba(255,255,255,0.07)",
+                borderRadius: 16,
+                padding: "20px 24px",
+              }}>
+                <div style={{ display: "flex", gap: 32 }}>
+                  {homeForm.length > 0 && (
+                    <TeamForm teamID={home_team.id} teamName={home_team.name} matches={homeForm} />
+                  )}
+                  {awayForm.length > 0 && (
+                    <TeamForm teamID={away_team.id} teamName={away_team.name} matches={awayForm} />
+                  )}
+                </div>
               </div>
-            </div>
+            </>
           )}
 
-          {/* Head to head */}
           {h2h && (
-            <HeadToHead
-              data={h2h}
-              homeTeamName={home_team.name}
-              awayTeamName={away_team.name}
-            />
+            <>
+              <SectionHeader color="#FFC23D" label="HEAD TO HEAD" />
+              <HeadToHead data={h2h} homeTeamName={home_team.name} awayTeamName={away_team.name} />
+            </>
           )}
 
-          {/* The Forecast: headline calls derived from model output */}
+          <SectionHeader color="#2BE38A" label="THE FORECAST" />
           <ForecastCard prediction={prediction} scorers={scorers} />
 
-          {/* Expected goals */}
           {expected_goals && (
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
-              <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Expected Goals</h2>
-              <div className="grid grid-cols-2 gap-4">
-                <StatBox label={`${home_team.name} xG`} value={expected_goals.home_xg.toFixed(2)} />
-                <StatBox label={`${away_team.name} xG`} value={expected_goals.away_xg.toFixed(2)} />
+            <>
+              <SectionHeader color="#A35CFF" label="EXPECTED GOALS" />
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <StatBox label={`${home_team.name} xG`} value={expected_goals.home_xg.toFixed(2)} color="#2BE38A" />
+                <StatBox label={`${away_team.name} xG`} value={expected_goals.away_xg.toFixed(2)} color="#5B8CFF" />
               </div>
-            </div>
+            </>
           )}
 
-          {/* Over / Under */}
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
-            <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-5">Over / Under</h2>
+          <SectionHeader color="#1FD0C0" label="OVER / UNDER" />
+          <div style={{ background: "#120F1E", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 16, padding: "20px 24px" }}>
             <OverUnderBars totals={totals} showBTTS />
           </div>
 
-          {/* Top scorelines */}
           {scoreline_grid && scoreline_grid.length > 0 && (
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
-              <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-5">Top Scorelines</h2>
-              <TopScorelines
-                grid={scoreline_grid}
-                homeTeam={home_team.name}
-                awayTeam={away_team.name}
-              />
-            </div>
+            <>
+              <SectionHeader color="#5B8CFF" label="TOP SCORELINES" />
+              <div style={{ background: "#120F1E", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 16, padding: "20px 24px" }}>
+                <TopScorelines grid={scoreline_grid} homeTeam={home_team.name} awayTeam={away_team.name} />
+              </div>
+            </>
           )}
 
-          {/* Market comparison — only when data exists */}
           {hasMarketData && (
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
-              <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">
-                Model vs Market
-              </h2>
-              <MarketPanel data={market!} />
-            </div>
+            <>
+              <SectionHeader color="#FFC23D" label="MODEL VS MARKET" />
+              <div style={{ background: "#120F1E", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 16, padding: "20px 24px" }}>
+                <MarketPanel data={market!} />
+              </div>
+            </>
           )}
 
-          {/* Scorer predictions */}
-          {scorers && <PlayerScorers data={scorers} />}
+          {scorers && (
+            <>
+              <SectionHeader color="#2BE38A" label="PROBABLE GOALSCORERS" />
+              <PlayerScorers data={scorers} />
+            </>
+          )}
 
-          {/* Pick card — before kick-off */}
-          <PredictionCard
-            matchId={id}
-            homeTeam={home_team}
-            awayTeam={away_team}
-            modelProbs={probs}
-          />
+          <SectionHeader color="#645F77" label="YOUR PREDICTION" />
+          <PredictionCard matchId={id} homeTeam={home_team} awayTeam={away_team} modelProbs={probs} />
 
-          {/* Preview and trivia */}
-          {preview && <MatchPreviewCard preview={preview} />}
-          {trivia && trivia.facts.length > 0 && <TriviaFacts facts={trivia.facts} />}
+          {preview && (
+            <>
+              <SectionHeader color="#9E99B0" label="MATCH PREVIEW" />
+              <MatchPreviewCard preview={preview} />
+            </>
+          )}
+          {trivia && trivia.facts.length > 0 && (
+            <>
+              <SectionHeader color="#1FD0C0" label="MATCH TRIVIA" />
+              <TriviaFacts facts={trivia.facts} />
+            </>
+          )}
         </>
       )}
 
       {/* Model metadata */}
-      <div className="text-xs text-slate-600 text-center space-y-1">
+      <div style={{ fontFamily: MONO, fontSize: 12, color: "#4A4560", textAlign: "center", marginTop: 32, display: "flex", flexDirection: "column", gap: 4 }}>
         <div>Model version: {prediction.model_version}</div>
         <div>Data as of: <LocalTime iso={prediction.model_as_of} variant="kickoff" /></div>
       </div>
-    </main>
+    </div>
   );
 }

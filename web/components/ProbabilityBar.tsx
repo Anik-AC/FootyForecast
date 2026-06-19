@@ -1,5 +1,7 @@
 import type { OutcomeProbabilities } from "@/lib/types";
 
+const MONO = "'JetBrains Mono',monospace";
+
 interface Props {
   probs: OutcomeProbabilities;
   homeLabel: string;
@@ -7,37 +9,24 @@ interface Props {
 }
 
 export function ProbabilityBar({ probs, homeLabel, awayLabel }: Props) {
-  const hw = (probs.home_win * 100).toFixed(0);
-  const dw = (probs.draw * 100).toFixed(0);
-  const aw = (probs.away_win * 100).toFixed(0);
+  const hw = Math.round(probs.home_win * 100);
+  const dw = Math.round(probs.draw * 100);
+  const aw = Math.round(probs.away_win * 100);
 
   return (
-    <div className="mt-3 space-y-1.5">
-      {/* Stacked bar */}
-      <div className="flex rounded-full overflow-hidden h-2 bg-slate-800">
-        <div
-          className="bg-emerald-500 transition-all"
-          style={{ width: `${probs.home_win * 100}%` }}
-        />
-        <div
-          className="bg-slate-500 transition-all"
-          style={{ width: `${probs.draw * 100}%` }}
-        />
-        <div
-          className="bg-rose-500 transition-all"
-          style={{ width: `${probs.away_win * 100}%` }}
-        />
+    <div>
+      <div style={{ display: "flex", height: 10, borderRadius: 99, overflow: "hidden", background: "#1D1A2A" }}>
+        <div style={{ width: `${hw}%`, background: "linear-gradient(90deg,#2BE38A,#1FD0C0)" }} />
+        <div style={{ width: `${dw}%`, background: "#FFC23D" }} />
+        <div style={{ width: `${aw}%`, background: "linear-gradient(90deg,#5B8CFF,#A35CFF)" }} />
       </div>
-      {/* Labels */}
-      <div className="flex justify-between text-xs text-slate-400">
+      <div style={{ display: "flex", justifyContent: "space-between", fontFamily: MONO, fontSize: 13, marginTop: 10, color: "#9E99B0" }}>
         <span>
-          <span className="text-emerald-400 font-medium">{hw}%</span>{" "}
-          {homeLabel}
+          <b style={{ color: "#2BE38A" }}>{hw}%</b> {homeLabel}
         </span>
-        <span className="text-slate-500">{dw}% draw</span>
+        <span style={{ color: "#FFC23D" }}>{dw}% draw</span>
         <span>
-          {awayLabel}{" "}
-          <span className="text-rose-400 font-medium">{aw}%</span>
+          {awayLabel} <b style={{ color: "#5B8CFF" }}>{aw}%</b>
         </span>
       </div>
     </div>

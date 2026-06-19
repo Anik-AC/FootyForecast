@@ -19,27 +19,31 @@ export default async function MatchesPage() {
   const byDate = groupByDate(upcoming);
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold">Upcoming Matches</h1>
-        <p className="text-slate-400 mt-1 text-sm">{upcoming.length} matches remaining</p>
+    <div style={{ animation: "ff-up 0.4s ease both", paddingTop: 46 }}>
+      <h1 style={{ fontSize: 42, fontWeight: 900, letterSpacing: "-0.03em", margin: 0 }}>Upcoming Matches</h1>
+      <div style={{ color: "#9E99B0", fontSize: 15, marginTop: 10 }}>
+        <b style={{ color: "#F2F1F7" }}>{upcoming.length}</b> matches remaining
       </div>
 
       {upcoming.length === 0 ? (
-        <p className="text-slate-500 text-center py-16">No upcoming matches.</p>
+        <p style={{ color: "#645F77", textAlign: "center", padding: "64px 0" }}>No upcoming matches.</p>
       ) : (
-        <div className="space-y-8">
+        <>
           {[...byDate.entries()].map(([date, dayMatches]) => (
-            <div key={date}>
-              <p className="text-xs font-medium text-slate-500 mb-3">
-                <LocalTime iso={dayMatches[0].kickoff_utc} variant="dayheading" />
-              </p>
-              <div className="grid gap-3 sm:grid-cols-2">
+            <div key={date} style={{ marginTop: 34 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 13, marginBottom: 16 }}>
+                <span style={{ width: 4, height: 16, borderRadius: 99, background: "#2BE38A" }} />
+                <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 13, color: "#C8C3D6", letterSpacing: "0.04em" }}>
+                  <LocalTime iso={dayMatches[0].kickoff_utc} variant="dayheading" />
+                </span>
+                <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.06)" }} />
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
                 {dayMatches.map((m) => <MatchCard key={m.id} match={m} />)}
               </div>
             </div>
           ))}
-        </div>
+        </>
       )}
     </div>
   );

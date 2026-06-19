@@ -2,6 +2,26 @@
 
 Dated, append-only record of what changed and why. Newest entries at the top.
 
+## 2026-06-19: Full frontend redesign (dark theme, design system)
+
+Complete visual overhaul of every page and component in `web/`. The site previously used Tailwind utility classes with a light/mixed theme; it now has a consistent dark design system matching the design files in `Design/`.
+
+**Design tokens.** Background `#0B0A12`, surface `#15131F`, inset `#120F1E`, track `#1D1A2A`. Accent palette: green `#2BE38A`, gold `#FFC23D`, blue `#5B8CFF`, teal `#1FD0C0`, purple `#A35CFF`, red `#FF5D6A`. Typography: Archivo for headings and body, JetBrains Mono for numbers, labels, and metadata. All specific non-standard CSS values are written as inline styles; hover states that cannot be expressed inline use named CSS classes in `globals.css`.
+
+**Rainbow streamer.** A 4px gradient bar (`#2BE38A` through `#FFC23D` and `#A35CFF` to `#FF5D6A`) runs at the top of every page via the root layout.
+
+**Flag rendering.** Country flags use `flagcdn.com/w{size}/{iso2}.png` CDN via a new `web/lib/flags.ts` helper that maps FIFA three-letter codes to ISO-2 codes. Emoji flags are not used because they do not render on Windows.
+
+**Section headers.** Every content section uses a consistent pattern: a 4px colored left-bar, an uppercase JetBrains Mono label, and a hairline separator `div`. The accent color varies by section type (green for results, blue for upcoming, purple for model stats, gold for upsets, teal for hydration/analysis).
+
+**Assets.** Logos and images from the `Design/` folder (which is gitignored) were copied to `web/public/assets/` so they are tracked in git and served by Next.js.
+
+**Pages rewritten** (all using inline styles, no Tailwind rewrite needed for page-level layout): home (`app/page.tsx`), upcoming matches, results, match detail, standings groups, standings knockout, teams list, team detail, stats, hydration analysis, bracket, calibration.
+
+**Components rewritten**: `MatchCard`, `ProbabilityBar`, `ForecastCard`, `PostMatchScorecard`, `MatchStatBars`, `HeadToHead`, `TeamForm`, `OverUnderBars`, `TopScorelines`, `TriviaFacts`, `PlayerScorers`, `MatchPreviewCard`, `BracketTable`, `StandingsNav` (new, client component for tab active state).
+
+**TypeScript.** `npx tsc --noEmit` passes with zero errors after fixing a reference to `prediction.stage` and `prediction.group_letter` that do not exist on the `MatchPrediction` type (only on `MatchSummary`). The match detail hero now renders the static string "FIFA World Cup 2026" for the stage label instead.
+
 ## 2026-06-19: Match detail page: events, facts, momentum chart, section cleanup
 
 **MatchEventsCard component.** Replaced the previous ad-hoc events rendering with a proper inline `MatchEventsCard` component. Key improvements: deduplicates events that appear twice in the stream (hydration breaks are emitted once with detail text and once without; the component keeps the more informative entry per minute+type pair); adds a `💧` icon and "Hydration break" label for `drinks_break` events so the incident type string is never rendered raw; adds `🟨🟥` for yellow-red cards; fixes layout with fixed-width minute (`w-10`) and icon (`w-5`) columns so player names never overflow into adjacent columns.

@@ -1,5 +1,7 @@
 import type { TotalsProbabilities } from "@/lib/types";
 
+const MONO = "'JetBrains Mono',monospace";
+
 interface Props {
   totals: TotalsProbabilities;
   showBTTS?: boolean;
@@ -12,9 +14,9 @@ const ITEMS = [
 ];
 
 function barColor(prob: number): string {
-  if (prob >= 0.65) return "bg-emerald-500";
-  if (prob >= 0.40) return "bg-emerald-700";
-  return "bg-slate-600";
+  if (prob >= 0.65) return "#2BE38A";
+  if (prob >= 0.40) return "#1FD0C0";
+  return "#4A4560";
 }
 
 export default function OverUnderBars({ totals, showBTTS = false }: Props) {
@@ -23,21 +25,25 @@ export default function OverUnderBars({ totals, showBTTS = false }: Props) {
     : ITEMS;
 
   return (
-    <div className="space-y-3">
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       {items.map(({ key, label }) => {
         const prob = totals[key] as number;
         const pct = (prob * 100).toFixed(1);
 
         return (
           <div key={key}>
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-sm text-slate-300">{label}</span>
-              <span className="text-sm font-bold text-emerald-400 tabular-nums">{pct}%</span>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 7 }}>
+              <span style={{ fontSize: 14, color: "#C8C3D6" }}>{label}</span>
+              <span style={{ fontFamily: MONO, fontSize: 14, fontWeight: 700, color: barColor(prob) }}>{pct}%</span>
             </div>
-            <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+            <div style={{ height: 7, background: "#1D1A2A", borderRadius: 99, overflow: "hidden" }}>
               <div
-                className={`h-full rounded-full ${barColor(prob)}`}
-                style={{ width: `${Math.min(prob * 100, 100)}%` }}
+                style={{
+                  height: "100%",
+                  borderRadius: 99,
+                  width: `${Math.min(prob * 100, 100)}%`,
+                  background: barColor(prob),
+                }}
               />
             </div>
           </div>

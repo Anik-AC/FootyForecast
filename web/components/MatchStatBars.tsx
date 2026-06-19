@@ -1,5 +1,7 @@
 import type { MatchStats } from "@/lib/types";
 
+const MONO = "'JetBrains Mono',monospace";
+
 interface Props {
   stats: MatchStats[];
   homeTeam: string;
@@ -45,18 +47,41 @@ function StatBar({
   const fmt = format ?? ((v: number) => String(v));
 
   return (
-    <div className="grid grid-cols-[1fr_auto_auto_auto_1fr] items-center gap-2 text-sm">
-      <div className="text-right font-mono text-slate-200">{fmt(homeVal)}</div>
-      <div
-        className="h-2 rounded-l-full bg-emerald-600"
-        style={{ width: `${homePct}px`, maxWidth: "80px", minWidth: "2px" }}
-      />
-      <div className="text-center text-xs text-slate-500 whitespace-nowrap px-1">{label}</div>
-      <div
-        className="h-2 rounded-r-full bg-blue-600"
-        style={{ width: `${100 - homePct}px`, maxWidth: "80px", minWidth: "2px" }}
-      />
-      <div className="font-mono text-slate-200">{fmt(awayVal)}</div>
+    <div style={{
+      display: "grid",
+      gridTemplateColumns: "1fr 80px auto 80px 1fr",
+      alignItems: "center",
+      gap: 8,
+    }}>
+      <div style={{ textAlign: "right", fontFamily: MONO, fontSize: 13, color: "#C8C3D6", fontWeight: 600 }}>
+        {fmt(homeVal)}
+      </div>
+      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+        <div style={{
+          height: 6,
+          borderRadius: "4px 0 0 4px",
+          background: "#2BE38A",
+          width: `${homePct}%`,
+          minWidth: 2,
+          maxWidth: 80,
+        }} />
+      </div>
+      <div style={{ textAlign: "center", fontFamily: MONO, fontSize: 11, color: "#645F77", whiteSpace: "nowrap" as const, letterSpacing: "0.04em" }}>
+        {label}
+      </div>
+      <div style={{ display: "flex", justifyContent: "flex-start" }}>
+        <div style={{
+          height: 6,
+          borderRadius: "0 4px 4px 0",
+          background: "#5B8CFF",
+          width: `${100 - homePct}%`,
+          minWidth: 2,
+          maxWidth: 80,
+        }} />
+      </div>
+      <div style={{ fontFamily: MONO, fontSize: 13, color: "#C8C3D6", fontWeight: 600 }}>
+        {fmt(awayVal)}
+      </div>
     </div>
   );
 }
@@ -75,15 +100,17 @@ export default function MatchStatBars({ stats, homeTeam, awayTeam }: Props) {
   if (!rows.length) return null;
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
-      <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">
-        Match Statistics
-      </h2>
-      <div className="flex justify-between text-xs text-slate-500 mb-3">
-        <span className="text-emerald-400 font-medium">{homeTeam}</span>
-        <span className="text-blue-400 font-medium">{awayTeam}</span>
+    <div style={{
+      background: "#120F1E",
+      border: "1px solid rgba(255,255,255,0.07)",
+      borderRadius: 16,
+      padding: "20px 24px",
+    }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 18, fontSize: 13, fontWeight: 700 }}>
+        <span style={{ color: "#2BE38A" }}>{homeTeam}</span>
+        <span style={{ color: "#5B8CFF" }}>{awayTeam}</span>
       </div>
-      <div className="space-y-2">
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {rows.map((row) => {
           const hv = (home?.[row.key] as number | undefined) ?? 0;
           const av = (away?.[row.key] as number | undefined) ?? 0;

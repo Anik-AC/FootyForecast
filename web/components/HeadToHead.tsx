@@ -1,5 +1,7 @@
 import type { H2HRecord, H2HMatch } from "@/lib/types";
 
+const MONO = "'JetBrains Mono',monospace";
+
 interface Props {
   data: H2HRecord;
   homeTeamName: string;
@@ -8,22 +10,48 @@ interface Props {
 
 function HistoricalRow({ m }: { m: H2HMatch }) {
   return (
-    <div className="flex items-center justify-between text-xs py-1.5 border-b border-slate-800 last:border-0">
-      <span className="text-slate-500 w-24 shrink-0">
+    <div style={{
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      fontSize: 13,
+      paddingTop: 10,
+      paddingBottom: 10,
+      borderBottom: "1px solid rgba(255,255,255,0.04)",
+    }}>
+      <span style={{ fontFamily: MONO, fontSize: 12, color: "#4A4560", width: 40, flexShrink: 0 }}>
         {m.date.slice(0, 4)}
       </span>
-      <div className="flex-1 flex items-center justify-center gap-3 font-medium">
-        <span className={`text-right flex-1 truncate ${m.home_goals > m.away_goals ? "text-slate-100" : "text-slate-500"}`}>
+      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
+        <span style={{
+          textAlign: "right",
+          flex: 1,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap" as const,
+          fontWeight: m.home_goals > m.away_goals ? 700 : 400,
+          color: m.home_goals > m.away_goals ? "#F2F1F7" : "#7E7892",
+        }}>
           {m.home_team}
         </span>
-        <span className="font-mono tabular-nums text-slate-100 shrink-0">
+        <span style={{ fontFamily: MONO, fontWeight: 700, color: "#F2F1F7", flexShrink: 0 }}>
           {m.home_goals}–{m.away_goals}
         </span>
-        <span className={`text-left flex-1 truncate ${m.away_goals > m.home_goals ? "text-slate-100" : "text-slate-500"}`}>
+        <span style={{
+          textAlign: "left",
+          flex: 1,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap" as const,
+          fontWeight: m.away_goals > m.home_goals ? 700 : 400,
+          color: m.away_goals > m.home_goals ? "#F2F1F7" : "#7E7892",
+        }}>
           {m.away_team}
         </span>
       </div>
-      <span className="text-slate-600 w-28 text-right shrink-0 truncate">{m.tournament}</span>
+      <span style={{ fontFamily: MONO, fontSize: 11, color: "#4A4560", width: 100, textAlign: "right", flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>
+        {m.tournament}
+      </span>
     </div>
   );
 }
@@ -34,57 +62,40 @@ export default function HeadToHead({ data, homeTeamName, awayTeamName }: Props) 
 
   if (!hasHistory && data.wc_2026.length === 0 && !hasRecent) return null;
 
-  const homeWinPct =
-    hasHistory ? Math.round((data.home_team_wins / data.all_time_played) * 100) : 0;
-  const drawPct =
-    hasHistory ? Math.round((data.all_time_draws / data.all_time_played) * 100) : 0;
-  const awayWinPct =
-    hasHistory ? Math.round((data.away_team_wins / data.all_time_played) * 100) : 0;
+  const homeWinPct = hasHistory ? Math.round((data.home_team_wins / data.all_time_played) * 100) : 0;
+  const drawPct = hasHistory ? Math.round((data.all_time_draws / data.all_time_played) * 100) : 0;
+  const awayWinPct = hasHistory ? Math.round((data.away_team_wins / data.all_time_played) * 100) : 0;
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
-      <h2 className="text-sm font-extrabold text-slate-100 uppercase tracking-widest">
-        Head to Head
-      </h2>
-
+    <div style={{
+      background: "#120F1E",
+      border: "1px solid rgba(255,255,255,0.07)",
+      borderRadius: 16,
+      padding: "20px 24px",
+    }}>
       {hasHistory && (
-        <div className="space-y-2">
-          <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
-            <span className="font-medium text-slate-200">{homeTeamName}</span>
-            <span className="text-slate-600">{data.all_time_played} played</span>
-            <span className="font-medium text-slate-200">{awayTeamName}</span>
+        <div style={{ marginBottom: hasRecent ? 18 : 0 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+            <span style={{ fontSize: 14, fontWeight: 700, color: "#F2F1F7" }}>{homeTeamName}</span>
+            <span style={{ fontFamily: MONO, fontSize: 12, color: "#645F77" }}>{data.all_time_played} played</span>
+            <span style={{ fontSize: 14, fontWeight: 700, color: "#F2F1F7" }}>{awayTeamName}</span>
           </div>
-
-          {/* Bar showing wins / draws / losses */}
-          <div className="flex h-2 rounded-full overflow-hidden gap-px">
-            <div
-              className="bg-emerald-500"
-              style={{ width: `${homeWinPct}%` }}
-              title={`${homeTeamName} wins: ${data.home_team_wins}`}
-            />
-            <div
-              className="bg-slate-600"
-              style={{ width: `${drawPct}%` }}
-              title={`Draws: ${data.all_time_draws}`}
-            />
-            <div
-              className="bg-blue-500"
-              style={{ width: `${awayWinPct}%` }}
-              title={`${awayTeamName} wins: ${data.away_team_wins}`}
-            />
+          <div style={{ display: "flex", height: 8, borderRadius: 99, overflow: "hidden", background: "#1D1A2A" }}>
+            <div style={{ width: `${homeWinPct}%`, background: "#2BE38A" }} />
+            <div style={{ width: `${drawPct}%`, background: "#4A4560" }} />
+            <div style={{ width: `${awayWinPct}%`, background: "#5B8CFF" }} />
           </div>
-
-          <div className="flex justify-between text-xs tabular-nums">
-            <span className="text-emerald-400 font-bold">{data.home_team_wins}W</span>
-            <span className="text-slate-500">{data.all_time_draws}D</span>
-            <span className="text-blue-400 font-bold">{data.away_team_wins}W</span>
+          <div style={{ display: "flex", justifyContent: "space-between", fontFamily: MONO, fontSize: 13, fontWeight: 700, marginTop: 8 }}>
+            <span style={{ color: "#2BE38A" }}>{data.home_team_wins}W</span>
+            <span style={{ color: "#645F77" }}>{data.all_time_draws}D</span>
+            <span style={{ color: "#5B8CFF" }}>{data.away_team_wins}W</span>
           </div>
         </div>
       )}
 
       {hasRecent && (
-        <div className="space-y-0">
-          <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-2">Recent meetings</p>
+        <div>
+          <div style={{ fontFamily: MONO, fontSize: 11, color: "#645F77", letterSpacing: "0.08em", marginBottom: 6 }}>RECENT MEETINGS</div>
           {data.recent.map((m, i) => (
             <HistoricalRow key={i} m={m} />
           ))}
@@ -92,7 +103,7 @@ export default function HeadToHead({ data, homeTeamName, awayTeamName }: Props) 
       )}
 
       {!hasHistory && !hasRecent && (
-        <p className="text-xs text-slate-600 italic">No historical matches on record.</p>
+        <p style={{ fontSize: 13, color: "#4A4560", fontStyle: "italic" }}>No historical matches on record.</p>
       )}
     </div>
   );
