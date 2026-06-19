@@ -17,12 +17,19 @@ import (
 
 // mockStore implements store.Store with canned responses.
 type mockStore struct {
-	matches     []models.MatchSummary
-	prediction  *models.MatchPrediction
-	simulation  *models.TournamentSimulation
-	comparison  *models.MarketComparison
-	calibration *models.CalibrationSummary
-	err         error
+	matches          []models.MatchSummary
+	prediction       *models.MatchPrediction
+	simulation       *models.TournamentSimulation
+	comparison       *models.MarketComparison
+	calibration      *models.CalibrationSummary
+	trivia           *models.MatchTrivia
+	preview          *models.MatchPreview
+	leaderboard      []models.LeaderboardEntry
+	userPrediction   *models.UserPredictionResponse
+	scorerPrediction *models.MatchScorerPredictions
+	disagreements    []models.DisagreementEntry
+	eloRatings       []models.TeamRating
+	err              error
 }
 
 func (m *mockStore) GetMatches(_ context.Context) ([]models.MatchSummary, error) {
@@ -39,6 +46,75 @@ func (m *mockStore) GetMarketComparison(_ context.Context, _ string) (*models.Ma
 }
 func (m *mockStore) GetCalibration(_ context.Context) (*models.CalibrationSummary, error) {
 	return m.calibration, m.err
+}
+func (m *mockStore) GetMatchTrivia(_ context.Context, _ string) (*models.MatchTrivia, error) {
+	return m.trivia, m.err
+}
+func (m *mockStore) GetMatchPreview(_ context.Context, _ string) (*models.MatchPreview, error) {
+	return m.preview, m.err
+}
+func (m *mockStore) GetLeaderboard(_ context.Context) ([]models.LeaderboardEntry, error) {
+	return m.leaderboard, m.err
+}
+func (m *mockStore) CreateUserPrediction(_ context.Context, _ string, req models.UserPredictionRequest) (*models.UserPredictionResponse, error) {
+	return m.userPrediction, m.err
+}
+func (m *mockStore) GetMatchScorerPredictions(_ context.Context, _ string) (*models.MatchScorerPredictions, error) {
+	return m.scorerPrediction, m.err
+}
+func (m *mockStore) GetDisagreements(_ context.Context, _ int) ([]models.DisagreementEntry, error) {
+	return m.disagreements, m.err
+}
+func (m *mockStore) GetTeamEloRatings(_ context.Context) ([]models.TeamRating, error) {
+	return m.eloRatings, m.err
+}
+func (m *mockStore) GetUserStats(_ context.Context, _ string) (*models.UserStats, error) {
+	return nil, m.err
+}
+func (m *mockStore) GetGroupStandings(_ context.Context) ([]models.GroupTable, error) {
+	return nil, m.err
+}
+func (m *mockStore) GetTopScorers(_ context.Context, _ int) ([]models.TopScorer, error) {
+	return nil, m.err
+}
+func (m *mockStore) GetTeams(_ context.Context) ([]models.TeamListItem, error) {
+	return nil, m.err
+}
+func (m *mockStore) GetTeamDetail(_ context.Context, _ string) (*models.TeamDetail, error) {
+	return nil, m.err
+}
+func (m *mockStore) GetMatchEvents(_ context.Context, _ string) ([]models.MatchEvent, error) {
+	return nil, m.err
+}
+func (m *mockStore) GetMatchStats(_ context.Context, _ string) ([]models.MatchStats, error) {
+	return nil, m.err
+}
+func (m *mockStore) GetMatchMomentum(_ context.Context, _ string) ([]models.MomentumPoint, error) {
+	return nil, m.err
+}
+func (m *mockStore) GetMatchCommentary(_ context.Context, _ string) ([]models.CommentaryEntry, error) {
+	return nil, m.err
+}
+func (m *mockStore) GetMatchPlayerStats(_ context.Context, _ string) ([]models.MatchPlayerStat, error) {
+	return nil, m.err
+}
+func (m *mockStore) GetMatchAnalysis(_ context.Context, _ string) (*models.MatchAnalysis, error) {
+	return nil, m.err
+}
+func (m *mockStore) GetHydrationAnalysis(_ context.Context) (*models.HydrationAnalysis, error) {
+	return nil, m.err
+}
+func (m *mockStore) GetTeamForm(_ context.Context, _ string) ([]models.MatchSummary, error) {
+	return nil, m.err
+}
+func (m *mockStore) GetMatchH2H(_ context.Context, _ string) (*models.H2HRecord, error) {
+	return nil, m.err
+}
+func (m *mockStore) GetTopAssists(_ context.Context, _ int) ([]models.TopScorer, error) {
+	return nil, m.err
+}
+func (m *mockStore) GetTournamentTrivia(_ context.Context) (*models.TournamentTriviaResponse, error) {
+	return nil, m.err
 }
 
 // serve routes a single GET request through a chi router and returns the recorder.

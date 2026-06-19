@@ -14,6 +14,10 @@ type MatchPrediction struct {
 	ScorelineGrid        []ScorelineProbability `json:"scoreline_grid"`
 	Totals               TotalsProbabilities    `json:"totals"`
 	ExpectedGoals        *ExpectedGoals         `json:"expected_goals,omitempty"`
+	HomeElo              *float64               `json:"home_elo,omitempty"`
+	AwayElo              *float64               `json:"away_elo,omitempty"`
+	ActualResult         *MatchResultSummary    `json:"actual_result,omitempty"`
+	Grading              *MatchGrading          `json:"grading,omitempty"`
 }
 
 // ScorelineProbability is one cell of the scoreline grid.

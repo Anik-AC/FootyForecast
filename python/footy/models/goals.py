@@ -41,7 +41,7 @@ from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
 
-MODEL_VERSION = "bayesian_goals_v1"
+MODEL_VERSION = "bayesian_goals_v2"
 
 _TRACE_DIR = Path(__file__).parent.parent.parent / "data" / "traces"
 _TRACE_PATH = _TRACE_DIR / "goals_model.nc"
@@ -52,6 +52,24 @@ _META_PATH  = _TRACE_DIR / "goals_model_meta.json"
 # Model definition
 # ---------------------------------------------------------------------------
 
+_REST_CENTER = 4.0   # days considered "neutral" rest (center of scaling)
+_REST_SCALE  = 4.0   # one unit of rest_coef effect per 4 extra days of rest
+_REST_CAP    = 14.0  # beyond this, diminishing returns are negligible
+
+
+def _scale_rest(rest_days_arr: np.ndarray) -> np.ndarray:
+    """
+    Scale raw rest days to a centred feature for the model.
+
+    Returns (clipped_days - REST_CENTER) / REST_SCALE, so:
+      0 days rest  → -1.0
+      4 days rest  →  0.0  (neutral)
+      8 days rest  → +1.0
+      14+ days     → +2.5  (capped)
+    """
+    return (np.clip(rest_days_arr, 0.0, _REST_CAP) - _REST_CENTER) / _REST_SCALE
+
+
 def build_model(
     df: pd.DataFrame,
     teams_df: pd.DataFrame,
@@ -61,6 +79,17 @@ def build_model(
 
     Returns the model and a metadata dict with the team/confederation
     index mappings needed for prediction.
+
+    Model formula (log-linear Poisson):
+        log(λ_home) = μ + att[h] - def[a] + home_adv*(1-neutral)
+                        + rest_coef * home_rest_scaled
+        log(λ_away) = μ + att[a] - def[h]
+                        + rest_coef * away_rest_scaled
+
+    rest_coef captures the per-4-day effect of additional rest on a team's
+    attacking rate. Prior: Normal(0, 0.1). Expected posterior: slightly positive
+    (more rest → marginally higher xG). A zero posterior means rest has no
+    detectable effect in the training data.
     """
     # --- Encode teams ---
     team_ids = teams_df["team_id"].values.tolist()
@@ -87,6 +116,10 @@ def build_model(
     neutral_arr   = df["neutral"].values.astype(float)
     weight_arr    = df["weight"].values.astype(float)
 
+    # Rest days: scaled centred feature (0 at 4 days rest, ±1 per 4 days).
+    home_rest_arr = _scale_rest(df["home_rest_days"].values.astype(float))
+    away_rest_arr = _scale_rest(df["away_rest_days"].values.astype(float))
+
     logger.info(
         "Building model: %d matches, %d teams, %d confederations",
         len(df), n_teams, n_confs,
@@ -103,13 +136,6 @@ def build_model(
 
         # ----------------------------------------------------------------
         # Team-level parameters — non-centred for efficient NUTS sampling.
-        #
-        # Instead of: att ~ Normal(mu_att_c[conf], sigma_att_c[conf])
-        # We sample:  att_z ~ Normal(0, 1)
-        #             att   = mu_att_c[conf] + sigma_att_c[conf] * att_z
-        #
-        # Both are mathematically equivalent but the non-centred form avoids
-        # the funnel geometry that slows NUTS in hierarchical models.
         # ----------------------------------------------------------------
         att_z = pm.Normal("att_z", 0.0, 1.0, shape=n_teams)
         def_z = pm.Normal("def_z", 0.0, 1.0, shape=n_teams)
@@ -123,9 +149,8 @@ def build_model(
             mu_def_c[team_conf] + sigma_def_c[team_conf] * def_z,
         )
 
-        # Sum-to-zero constraint: removes the intercept/attack/defence
-        # identifiability problem (otherwise the model can trade off
-        # intercept against mean attack strength without bound).
+        # Sum-to-zero constraint removes the intercept/attack/defence
+        # identifiability problem.
         att = pm.Deterministic("att",          att_raw - pt.mean(att_raw))
         def_strength = pm.Deterministic("def_strength", def_raw - pt.mean(def_raw))
 
@@ -135,6 +160,11 @@ def build_model(
         mu       = pm.Normal("mu",       0.3, 0.2)   # log of avg goals per team
         home_adv = pm.Normal("home_adv", 0.2, 0.1)   # log boost for home team
 
+        # Effect of rest on attacking rate, per 4-day unit above the 4-day
+        # baseline. Prior centred at 0 (no assumed effect direction); width 0.1
+        # allows effects up to ±10% on expected goals per 4 days.
+        rest_coef = pm.Normal("rest_coef", 0.0, 0.1)
+
         # ----------------------------------------------------------------
         # Expected goals (log scale) for each match
         # ----------------------------------------------------------------
@@ -143,33 +173,35 @@ def build_model(
             + att[home_idx_arr]
             - def_strength[away_idx_arr]
             + home_adv * (1.0 - neutral_arr)
+            + rest_coef * home_rest_arr
         )
         log_lam_away = (
             mu
             + att[away_idx_arr]
             - def_strength[home_idx_arr]
+            + rest_coef * away_rest_arr
         )
 
         # ----------------------------------------------------------------
         # Weighted Poisson likelihood via pm.Potential.
-        #
-        # pm.Potential adds a term directly to the log-posterior without
-        # creating an observed variable. We use it here to apply per-match
-        # time-decay weights: recent matches contribute more to the
-        # posterior than old ones.
+        # Weight = time_decay * competitive_weight so friendlies contribute
+        # less than competitive matches and older matches less than recent ones.
         # ----------------------------------------------------------------
         home_loglike = pm.logp(pm.Poisson.dist(mu=pt.exp(log_lam_home)), home_goals)
         away_loglike = pm.logp(pm.Poisson.dist(mu=pt.exp(log_lam_away)), away_goals)
         pm.Potential("weighted_ll", (weight_arr * (home_loglike + away_loglike)).sum())
 
     meta = {
-        "team_idx":  team_idx,
-        "conf_idx":  conf_idx,
-        "team_conf": team_conf.tolist(),
-        "team_ids":  team_ids,
-        "conf_list": conf_list,
-        "n_teams":   n_teams,
-        "n_confs":   n_confs,
+        "team_idx":   team_idx,
+        "conf_idx":   conf_idx,
+        "team_conf":  team_conf.tolist(),
+        "team_ids":   team_ids,
+        "conf_list":  conf_list,
+        "n_teams":    n_teams,
+        "n_confs":    n_confs,
+        "rest_center": _REST_CENTER,
+        "rest_scale":  _REST_SCALE,
+        "rest_cap":    _REST_CAP,
     }
     return model, meta
 

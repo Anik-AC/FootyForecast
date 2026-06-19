@@ -3,8 +3,8 @@ Training dataset preparation for the goals model.
 
 Processes all historical matches through EloRater (to keep ratings accurate),
 then records matches where both teams are WC 2026 qualifiers as training rows.
-Each row carries pre-match Elo for both sides and an exponential time-decay
-weight (half-life 2 years per PRD).
+Each row carries pre-match Elo for both sides, per-team rest days, and a
+combined weight: exponential time-decay * competitive importance.
 
 Usage:
     from footy.features.training_data import prepare_training_data
@@ -14,14 +14,14 @@ Usage:
 from __future__ import annotations
 
 import logging
-from datetime import date
+from datetime import date, timedelta
 
 import numpy as np
 import pandas as pd
 import psycopg
 
 from footy.ingest.team_map import TEAM_NAME_MAP
-from footy.ratings.elo import EloRater, elo_key
+from footy.ratings.elo import EloRater, elo_key, tournament_tier
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +39,29 @@ _WC_TEAM_IDS: frozenset[str] = frozenset(
     tid for tid in TEAM_NAME_MAP.values() if tid is not None
 )
 
+# How much each match type contributes to the goals model likelihood.
+# Friendlies carry genuine squad-vs-squad signal but tactical motivation is low;
+# 0.3 is the standard "down-weight friendlies" factor used by FiveThirtyEight.
+COMPETITIVE_WEIGHTS: dict[str, float] = {
+    "wc":          1.00,
+    "competitive": 0.75,
+    "friendly":    0.30,
+}
+
+# Default rest days assumed when a team has no prior match in the dataset.
+_DEFAULT_REST_DAYS = 7.0
+
+# Cap: beyond 21 days rest the effect is negligible (pre-tournament breaks, etc.)
+_REST_CAP_DAYS = 21.0
+
+
+def _rest_days(match_date: date, last_seen: dict[str, date], team_key: str) -> float:
+    """Days since this team's previous match. Defaults to _DEFAULT_REST_DAYS."""
+    prev = last_seen.get(team_key)
+    if prev is None:
+        return _DEFAULT_REST_DAYS
+    return min(float((match_date - prev).days), _REST_CAP_DAYS)
+
 
 def prepare_training_data(
     conn: psycopg.Connection,
@@ -53,11 +76,16 @@ def prepare_training_data(
 
     Returns a DataFrame with columns:
         match_date, home_id, away_id, home_goals, away_goals,
-        tournament, neutral, home_elo, away_elo, days_ago, weight
+        tournament, neutral, home_elo, away_elo,
+        home_rest_days, away_rest_days,
+        days_ago, weight
+    where weight = time_decay * competitive_weight.
     """
     today = date.today()
     rater = EloRater()
     records: list[dict] = []
+    # Tracks the date of the most recent match processed for each team key.
+    last_seen: dict[str, date] = {}
 
     # --- Historical matches (Kaggle CSV) ---
     with conn.cursor() as cur:
@@ -81,25 +109,33 @@ def prepare_training_data(
 
         home_elo_pre = rater.rating(hk)
         away_elo_pre = rater.rating(ak)
+        home_rest = _rest_days(match_date, last_seen, hk)
+        away_rest = _rest_days(match_date, last_seen, ak)
 
         rater.process_match(home, away, hg, ag, tourn, bool(neutral))
+        last_seen[hk] = match_date
+        last_seen[ak] = match_date
 
         if (
             hk in _WC_TEAM_IDS
             and ak in _WC_TEAM_IDS
             and match_date >= min_date
         ):
+            tier = tournament_tier(tourn)
             records.append({
-                "match_date": match_date,
-                "home_id":    hk,
-                "away_id":    ak,
-                "home_goals": int(hg),
-                "away_goals": int(ag),
-                "tournament": tourn,
-                "neutral":    bool(neutral),
-                "home_elo":   home_elo_pre,
-                "away_elo":   away_elo_pre,
-                "days_ago":   (today - match_date).days,
+                "match_date":    match_date,
+                "home_id":       hk,
+                "away_id":       ak,
+                "home_goals":    int(hg),
+                "away_goals":    int(ag),
+                "tournament":    tourn,
+                "neutral":       bool(neutral),
+                "home_elo":      home_elo_pre,
+                "away_elo":      away_elo_pre,
+                "home_rest_days": home_rest,
+                "away_rest_days": away_rest,
+                "days_ago":      (today - match_date).days,
+                "comp_weight":   COMPETITIVE_WEIGHTS[tier],
             })
 
     # --- Completed WC 2026 matches ---
@@ -122,22 +158,30 @@ def prepare_training_data(
     for match_date, home_id, away_id, hg, ag in wc_rows:
         home_elo_pre = rater.rating(home_id)
         away_elo_pre = rater.rating(away_id)
+        home_rest = _rest_days(match_date, last_seen, home_id)
+        away_rest = _rest_days(match_date, last_seen, away_id)
         rater.process_match(home_id, away_id, hg, ag, "FIFA World Cup", neutral=True)
+        last_seen[home_id] = match_date
+        last_seen[away_id] = match_date
         records.append({
-            "match_date": match_date,
-            "home_id":    home_id,
-            "away_id":    away_id,
-            "home_goals": int(hg),
-            "away_goals": int(ag),
-            "tournament": "FIFA World Cup",
-            "neutral":    True,
-            "home_elo":   home_elo_pre,
-            "away_elo":   away_elo_pre,
-            "days_ago":   (today - match_date).days,
+            "match_date":    match_date,
+            "home_id":       home_id,
+            "away_id":       away_id,
+            "home_goals":    int(hg),
+            "away_goals":    int(ag),
+            "tournament":    "FIFA World Cup",
+            "neutral":       True,
+            "home_elo":      home_elo_pre,
+            "away_elo":      away_elo_pre,
+            "home_rest_days": home_rest,
+            "away_rest_days": away_rest,
+            "days_ago":      (today - match_date).days,
+            "comp_weight":   COMPETITIVE_WEIGHTS["wc"],
         })
 
     df = pd.DataFrame(records)
-    df["weight"] = np.exp(-np.log(2) * df["days_ago"] / HALF_LIFE_DAYS)
+    time_decay = np.exp(-np.log(2) * df["days_ago"] / HALF_LIFE_DAYS)
+    df["weight"] = time_decay * df["comp_weight"]
 
     logger.info(
         "Training dataset: %d matches, %d unique teams, date range %s to %s",

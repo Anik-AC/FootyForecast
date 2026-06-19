@@ -24,12 +24,28 @@ type TournamentState struct {
 	GroupMatchScores map[string][2]int
 }
 
+// hostNations are the WC 2026 host countries. They play in front of home
+// crowds so receive a partial home-advantage term (hostAdvFactor of HomeAdv).
+var hostNations = map[string]bool{"USA": true, "CAN": true, "MEX": true}
+
+// hostAdvFactor is the fraction of the model's home_adv applied to host nations.
+// 0.5 = half the fitted home-field signal (crowds are more mixed in a World Cup
+// than in a club league, but hosts still benefit from local support and logistics).
+const hostAdvFactor = 0.5
+
 // lambdas computes expected goals for home vs away using the Poisson model.
-// All WC 2026 matches are played at neutral venues so home_adv is not applied.
+// All WC 2026 matches are neutral except for host nations (USA, CAN, MEX) which
+// receive a partial home-advantage boost per the PRD.
 func lambdas(home, away string, params map[string]TeamParams) (float64, float64) {
 	hp := params[home]
 	ap := params[away]
-	lh := math.Exp(hp.Mu + hp.Att - ap.Def)
+
+	advFactor := 0.0
+	if hostNations[home] {
+		advFactor = hostAdvFactor
+	}
+
+	lh := math.Exp(hp.Mu + hp.Att - ap.Def + hp.HomeAdv*advFactor)
 	la := math.Exp(hp.Mu + ap.Att - hp.Def)
 	return lh, la
 }
@@ -155,8 +171,10 @@ func SimulateKnockout(advancers []string, params map[string]TeamParams, rng *ran
 	return reached
 }
 
-// knockoutWinner samples a match result. If level after 90 min, flips a coin
-// (models extra time + penalties as 50/50 once level).
+// knockoutWinner samples a match result. If level after 90 min, resolves extra
+// time and penalties using relative Poisson rates: P(home) = lh / (lh + la).
+// This preserves the model's strength signal rather than discarding it with a
+// coin flip, which would bias champion probabilities toward weaker teams.
 func knockoutWinner(lh, la float64, home, away string, rng *rand.Rand) string {
 	hg, ag := sampleScore(lh, la, rng)
 	if hg > ag {
@@ -165,8 +183,16 @@ func knockoutWinner(lh, la float64, home, away string, rng *rand.Rand) string {
 	if ag > hg {
 		return away
 	}
-	// Draw: 50/50 penalty shootout.
-	if rng.Intn(2) == 0 {
+	// Level after 90 min: use relative strength for ET/penalties.
+	total := lh + la
+	if total <= 0 {
+		// Degenerate: both teams have zero xG — fall back to coin flip.
+		if rng.Intn(2) == 0 {
+			return home
+		}
+		return away
+	}
+	if rng.Float64() < lh/total {
 		return home
 	}
 	return away

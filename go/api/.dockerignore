@@ -1,0 +1,5 @@
+# Test files and local development artifacts
+*_test.go
+*.md
+.env
+.env.*

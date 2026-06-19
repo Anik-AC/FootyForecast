@@ -6,6 +6,7 @@ import "time"
 type TournamentSimulation struct {
 	SimulationID     string                 `json:"simulation_id"`
 	RunAt            time.Time              `json:"run_at"`
+	PreviousRunAt    *time.Time             `json:"previous_run_at,omitempty"`
 	NSimulations     int                    `json:"n_simulations"`
 	MatchResultsAsOf time.Time              `json:"match_results_as_of"`
 	Teams            []TeamSimulationResult `json:"teams"`
@@ -13,11 +14,12 @@ type TournamentSimulation struct {
 
 // TeamSimulationResult is one team's stage-advancement probabilities.
 type TeamSimulationResult struct {
-	TeamID             string             `json:"team_id"`
-	TeamName           string             `json:"team_name"`
-	Group              *string            `json:"group"`      // null after group stage ends
-	Eliminated         bool               `json:"eliminated"` // true once knocked out
-	StageProbabilities StageProbabilities `json:"stage_probabilities"`
+	TeamID             string              `json:"team_id"`
+	TeamName           string              `json:"team_name"`
+	Group              *string             `json:"group"`      // null after group stage ends
+	Eliminated         bool                `json:"eliminated"` // true once knocked out
+	StageProbabilities StageProbabilities  `json:"stage_probabilities"`
+	Delta              *StageProbabilities `json:"delta,omitempty"` // change since previous run; nil if no prior run
 }
 
 // StageProbabilities are the reach-or-further probabilities per knockout stage.

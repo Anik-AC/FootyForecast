@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { NavDropdown } from "@/components/NavDropdown";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -24,15 +25,19 @@ export default function RootLayout({
                 WC 2026
               </span>
             </Link>
-            <nav className="flex items-center gap-6 text-sm text-slate-400">
-              <Link href="/" className="hover:text-slate-100 transition-colors">
-                Matches
+            <nav className="flex items-center gap-5 text-sm text-slate-400">
+              <Link href="/matches" className="hover:text-slate-100 transition-colors">
+                Upcoming
               </Link>
-              <Link href="/bracket" className="hover:text-slate-100 transition-colors">
-                Bracket
+              <Link href="/results" className="hover:text-slate-100 transition-colors">
+                Results
               </Link>
-              <Link href="/calibration" className="hover:text-slate-100 transition-colors">
-                Calibration
+              <NavDropdown />
+              <Link href="/teams" className="hover:text-slate-100 transition-colors">
+                Teams
+              </Link>
+              <Link href="/stats" className="hover:text-slate-100 transition-colors">
+                Stats
               </Link>
             </nav>
           </div>

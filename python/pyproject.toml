@@ -13,6 +13,8 @@ dependencies = [
     "arviz>=0.19",
     "netcdf4>=1.7.4",
     "matplotlib>=3.11.0",
+    "httpx>=0.28.1",
+    "cloudscraper>=1.2.71",
 ]
 
 [project.optional-dependencies]

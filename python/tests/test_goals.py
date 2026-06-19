@@ -12,7 +12,11 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from footy.features.training_data import HALF_LIFE_DAYS, TRAIN_MIN_DATE
+from footy.features.training_data import (
+    COMPETITIVE_WEIGHTS,
+    HALF_LIFE_DAYS,
+    TRAIN_MIN_DATE,
+)
 from footy.models.predict import predict_match
 
 
@@ -27,6 +31,17 @@ def test_train_min_date_is_2018():
 
 def test_half_life_is_730():
     assert HALF_LIFE_DAYS == 730.0
+
+
+def test_competitive_weights_ordering():
+    """WC matches must outweigh competitive which must outweigh friendlies."""
+    assert COMPETITIVE_WEIGHTS["wc"] > COMPETITIVE_WEIGHTS["competitive"]
+    assert COMPETITIVE_WEIGHTS["competitive"] > COMPETITIVE_WEIGHTS["friendly"]
+
+
+def test_competitive_weights_bounds():
+    for v in COMPETITIVE_WEIGHTS.values():
+        assert 0.0 < v <= 1.0
 
 
 def test_weight_formula_at_zero_days():
@@ -82,18 +97,25 @@ def _make_fake_trace(n_chains: int = 2, n_draws: int = 50, n_teams: int = 4) -> 
     def_vals[..., 3] =  0.5   # DDD weak defence
     def_vals += rng.normal(0, 0.01, def_vals.shape)
 
+    # rest_coef > 0: more rest → higher attack rate (weak but positive prior)
+    rest_coef_vals = np.full(shape, 0.05) + rng.normal(0, 0.005, shape)
+
     posterior_ds = xr.Dataset({
-        "mu":           xr.DataArray(mu_vals,       dims=["chain", "draw"]),
-        "home_adv":     xr.DataArray(home_adv_vals, dims=["chain", "draw"]),
-        "att":          xr.DataArray(att_vals,      dims=["chain", "draw", "team"]),
-        "def_strength": xr.DataArray(def_vals,      dims=["chain", "draw", "team"]),
+        "mu":           xr.DataArray(mu_vals,        dims=["chain", "draw"]),
+        "home_adv":     xr.DataArray(home_adv_vals,  dims=["chain", "draw"]),
+        "att":          xr.DataArray(att_vals,       dims=["chain", "draw", "team"]),
+        "def_strength": xr.DataArray(def_vals,       dims=["chain", "draw", "team"]),
+        "rest_coef":    xr.DataArray(rest_coef_vals, dims=["chain", "draw"]),
     })
     # ArviZ >= 0.19 uses xarray DataTree; az.InferenceData was removed.
     trace = xr.DataTree.from_dict({"posterior": posterior_ds})
 
     meta = {
-        "team_idx": {"AAA": 0, "BBB": 1, "CCC": 2, "DDD": 3},
-        "n_teams":  n_teams,
+        "team_idx":    {"AAA": 0, "BBB": 1, "CCC": 2, "DDD": 3},
+        "n_teams":     n_teams,
+        "rest_center": 4.0,
+        "rest_scale":  4.0,
+        "rest_cap":    14.0,
     }
     return trace, meta
 
@@ -210,3 +232,42 @@ def test_unknown_team_raises_key_error(fake_trace):
     trace, meta = fake_trace
     with pytest.raises(KeyError, match="ZZZ"):
         predict_match("ZZZ", "AAA", neutral=True, trace=trace, meta=meta)
+
+
+# ---------------------------------------------------------------------------
+# predict_match: rest day effects
+# ---------------------------------------------------------------------------
+
+def test_more_home_rest_increases_home_xg(fake_trace):
+    """With positive rest_coef, a home team with more rest should score more."""
+    trace, meta = fake_trace
+    r_short = predict_match(
+        "AAA", "BBB", neutral=True, trace=trace, meta=meta,
+        rng=np.random.default_rng(1), home_rest_days=3.0, away_rest_days=7.0,
+    )
+    r_long = predict_match(
+        "AAA", "BBB", neutral=True, trace=trace, meta=meta,
+        rng=np.random.default_rng(1), home_rest_days=10.0, away_rest_days=7.0,
+    )
+    assert r_long["home_xg"] > r_short["home_xg"]
+
+
+def test_more_away_rest_increases_away_xg(fake_trace):
+    """With positive rest_coef, an away team with more rest should score more."""
+    trace, meta = fake_trace
+    r_short = predict_match(
+        "AAA", "BBB", neutral=True, trace=trace, meta=meta,
+        rng=np.random.default_rng(2), home_rest_days=7.0, away_rest_days=3.0,
+    )
+    r_long = predict_match(
+        "AAA", "BBB", neutral=True, trace=trace, meta=meta,
+        rng=np.random.default_rng(2), home_rest_days=7.0, away_rest_days=10.0,
+    )
+    assert r_long["away_xg"] > r_short["away_xg"]
+
+
+def test_default_rest_produces_valid_prediction(fake_trace):
+    """predict_match with no rest args (defaults 7.0) should still work."""
+    trace, meta = fake_trace
+    result = predict_match("CCC", "DDD", neutral=True, trace=trace, meta=meta)
+    assert abs(result["home_win_prob"] + result["draw_prob"] + result["away_win_prob"] - 1.0) < 1e-6

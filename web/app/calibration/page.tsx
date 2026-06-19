@@ -1,4 +1,5 @@
 import { getCalibration } from "@/lib/api";
+import LocalTime from "@/components/LocalTime";
 import type { GradedMatch } from "@/lib/types";
 
 function outcomeLabel(outcome: string): string {
@@ -24,17 +25,20 @@ function MatchRow({ match }: { match: GradedMatch }) {
   const mktSources = Object.keys(match.market_log_loss ?? {});
 
   return (
-    <tr className="border-t border-slate-800 hover:bg-slate-900/50 transition-colors">
+    <tr className={`border-t border-slate-800 hover:bg-slate-900/50 transition-colors ${match.is_retroactive ? "opacity-50" : ""}`}>
       <td className="py-3 pr-4">
-        <div className="text-sm font-medium text-slate-200">
-          {match.home_team.name} vs {match.away_team.name}
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-slate-200">
+            {match.home_team.name} vs {match.away_team.name}
+          </span>
+          {match.is_retroactive && (
+            <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-900/50 text-amber-400 border border-amber-700/50 shrink-0">
+              in-sample
+            </span>
+          )}
         </div>
         <div className="text-xs text-slate-500 mt-0.5">
-          {new Date(match.kickoff_utc).toLocaleDateString("en-GB", {
-            day: "numeric",
-            month: "short",
-            timeZone: "UTC",
-          })}
+          <LocalTime iso={match.kickoff_utc} variant="dateonly" />
         </div>
       </td>
       <td className="py-3 pr-4">
@@ -77,16 +81,19 @@ export default async function CalibrationPage() {
     <main className="max-w-5xl mx-auto px-4 py-8 space-y-8">
       <h1 className="text-2xl font-bold text-slate-100">Calibration</h1>
 
-      {/* Summary cards */}
+      {/* Summary cards — OOS figures are the headline; retroactive rows excluded */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <SummaryCard label="Matches graded" value={String(data.total_matches)} />
         <SummaryCard
-          label="Model mean log loss"
-          value={data.model_mean_log_loss.toFixed(4)}
+          label={`Out-of-sample matches (${data.total_matches} total)`}
+          value={String(data.out_of_sample_matches)}
         />
         <SummaryCard
-          label="Model mean Brier"
-          value={data.model_mean_brier.toFixed(4)}
+          label="OOS mean log loss"
+          value={data.out_of_sample_matches > 0 ? data.oos_mean_log_loss.toFixed(4) : "—"}
+        />
+        <SummaryCard
+          label="OOS mean Brier"
+          value={data.out_of_sample_matches > 0 ? data.oos_mean_brier.toFixed(4) : "—"}
         />
         {marketSources.slice(0, 1).map((src) => (
           <SummaryCard
@@ -96,6 +103,11 @@ export default async function CalibrationPage() {
           />
         ))}
       </div>
+      {data.total_matches > data.out_of_sample_matches && (
+        <p className="text-xs text-slate-600">
+          {data.total_matches - data.out_of_sample_matches} in-sample (retroactive) predictions are shown in the table below but excluded from the headline metrics.
+        </p>
+      )}
 
       {/* Market benchmarks (all sources if > 1) */}
       {marketSources.length > 1 && (

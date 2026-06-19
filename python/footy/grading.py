@@ -264,6 +264,60 @@ def grade_completed_matches(conn: psycopg.Connection) -> int:
     return graded_count
 
 
+def grade_user_predictions(conn: psycopg.Connection) -> int:
+    """
+    Grade user predictions for all completed WC2026 matches.
+
+    Updates log_loss and brier_score on user_predictions rows whose outcome
+    is now known but which have not yet been scored (log_loss IS NULL).
+
+    Returns the number of rows updated.
+    """
+    with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
+        cur.execute("""
+            SELECT
+                up.id,
+                up.home_win_prob,
+                up.draw_prob,
+                up.away_win_prob,
+                mr.outcome AS actual_outcome
+            FROM user_predictions up
+            JOIN match_results mr ON mr.fixture_id = up.fixture_id
+            JOIN fixtures f       ON f.id = up.fixture_id
+            WHERE f.tournament_id = 'WC2026'
+              AND up.log_loss IS NULL
+        """)
+        pending = cur.fetchall()
+
+    if not pending:
+        logger.info("No ungraded user predictions found.")
+        return 0
+
+    updated = 0
+    for row in pending:
+        probs = {
+            "home_win": row["home_win_prob"],
+            "draw": row["draw_prob"],
+            "away_win": row["away_win_prob"],
+        }
+        outcome = row["actual_outcome"]
+        ll = log_loss(probs, outcome)
+        bs = brier_score(probs, outcome)
+
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE user_predictions
+                SET log_loss = %s, brier_score = %s
+                WHERE id = %s
+            """, (ll, bs, row["id"]))
+        updated += 1
+        logger.info("Graded user prediction %s: log_loss=%.4f brier=%.4f", row["id"], ll, bs)
+
+    conn.commit()
+    logger.info("Graded %d user prediction(s).", updated)
+    return updated
+
+
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 
@@ -273,11 +327,15 @@ def main() -> None:
     from footy.db import get_conn
     with get_conn() as conn:
         n = grade_completed_matches(conn)
+        n_users = grade_user_predictions(conn)
 
-    if n == 0:
-        print("No new matches to grade.")
+    if n == 0 and n_users == 0:
+        print("No new matches or user predictions to grade.")
     else:
-        print(f"Graded {n} match(es). Results written to match_grading.")
+        if n:
+            print(f"Graded {n} match(es). Results written to match_grading.")
+        if n_users:
+            print(f"Graded {n_users} user prediction(s).")
     sys.exit(0)
 
 

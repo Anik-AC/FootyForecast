@@ -166,5 +166,8 @@
     "UEFA"
   ],
   "n_teams": 48,
-  "n_confs": 6
+  "n_confs": 6,
+  "rest_center": 4.0,
+  "rest_scale": 4.0,
+  "rest_cap": 14.0
 }
