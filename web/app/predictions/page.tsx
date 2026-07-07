@@ -2,6 +2,7 @@ import { getMatches, getLatestSimulation } from "@/lib/api";
 import type { MatchSummary } from "@/lib/types";
 import type { CSSProperties } from "react";
 import { teamColor } from "@/lib/teamColors";
+import { flagUrl } from "@/lib/flags";
 
 const MONO = "'JetBrains Mono',monospace";
 
@@ -129,26 +130,23 @@ function projectedWinner(a: string | null, b: string | null, champ: Record<strin
 
 // ---- Sub-components ----
 
-function CountryBadge({ id }: { id: string }) {
-  const bg = teamColor(id);
+function FlagImg({ id, size = 28 }: { id: string; size?: number }) {
   return (
     <span style={{
-      display: "inline-flex",
-      alignItems: "center",
-      justifyContent: "center",
-      width: 26,
-      height: 16,
-      borderRadius: 3,
-      background: bg,
-      color: "#fff",
-      fontSize: 8.5,
-      fontWeight: 800,
-      fontFamily: MONO,
-      letterSpacing: "0.05em",
+      width: size,
+      height: Math.round(size * 0.68),
+      borderRadius: 4,
+      overflow: "hidden",
+      border: "1px solid rgba(255,255,255,0.14)",
+      display: "block",
       flexShrink: 0,
-      textShadow: "0 1px 2px rgba(0,0,0,0.6)",
     }}>
-      {id.slice(0, 3)}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={flagUrl(id, 40)}
+        alt={id}
+        style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+      />
     </span>
   );
 }
@@ -168,7 +166,7 @@ function TeamRow({ t, played }: { t: BTeam; played: boolean }) {
       background: t.isWinner ? "rgba(43,227,138,0.07)" : "transparent",
     }}>
       <div style={{ width: 3, height: 22, borderRadius: 2, background: accent, flexShrink: 0 }} />
-      <CountryBadge id={t.id} />
+      <FlagImg id={t.id} size={26} />
       <span style={{
         fontSize: 12,
         fontWeight: 600,
@@ -355,7 +353,7 @@ export default async function PredictionsBracketPage() {
           borderRadius: 14,
           marginBottom: 36,
         }}>
-          <CountryBadge id={championId} />
+          <FlagImg id={championId} size={36} />
           <div>
             <div style={{ fontFamily: MONO, fontSize: 10, color: "#7A7590", letterSpacing: "0.1em", marginBottom: 2 }}>PREDICTED CHAMPION</div>
             <div style={{ fontFamily: MONO, fontSize: 15, fontWeight: 700, color: "#FFC23D" }}>
