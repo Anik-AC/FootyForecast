@@ -15,6 +15,17 @@ export interface OutcomeProbabilities {
 export interface MatchResultSummary {
   home_goals: number;
   away_goals: number;
+  went_to_et: boolean;
+  went_to_pens: boolean;
+  pen_winner_id?: string;
+}
+
+export interface KnockoutProbabilities {
+  home_win_full: number;
+  away_win_full: number;
+  goes_to_et: number;
+  goes_to_pens: number;
+  home_pen_win: number;
 }
 
 export interface KeyEvent {
@@ -108,6 +119,7 @@ export interface MatchPrediction {
   away_elo?: number;
   actual_result?: MatchResultSummary;
   grading?: MatchGrading;
+  knockout_probs?: KnockoutProbabilities;
 }
 
 export interface MarketRaw {

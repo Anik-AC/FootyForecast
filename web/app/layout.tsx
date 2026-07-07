@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
-import { NavDropdown } from "@/components/NavDropdown";
 import { NavLink } from "@/components/NavLink";
+import { MobileNav } from "@/components/MobileNav";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -53,24 +53,30 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               </span>
             </Link>
 
-            {/* Nav items */}
-            <nav style={{ display: "flex", alignItems: "center", gap: 3 }}>
+            {/* Desktop nav */}
+            <nav className="ff-desktop-nav" style={{ alignItems: "center", gap: 3 }}>
               <NavLink href="/" exact>Home</NavLink>
               <NavLink href="/matches">Upcoming</NavLink>
               <NavLink href="/results">Results</NavLink>
-              <NavDropdown />
+              <NavLink href="/predictions">Bracket</NavLink>
+              <NavLink href="/standings/groups" activePrefix="/standings">Standings</NavLink>
               <NavLink href="/teams">Teams</NavLink>
               <NavLink href="/stats">Stats</NavLink>
             </nav>
+
+            {/* Mobile hamburger */}
+            <div className="ff-mobile-nav-btn" style={{ alignItems: "center" }}>
+              <MobileNav />
+            </div>
           </div>
         </header>
 
-        <div style={{ maxWidth: 1180, margin: "0 auto", padding: "0 28px" }}>
+        <div className="ff-page-container" style={{ maxWidth: 1180, margin: "0 auto", padding: "0 28px" }}>
           {children}
         </div>
 
         {/* Footer */}
-        <div style={{ maxWidth: 1180, margin: "0 auto", padding: "0 28px" }}>
+        <div className="ff-page-container" style={{ maxWidth: 1180, margin: "0 auto", padding: "0 28px" }}>
           <div style={{
             borderTop: "1px solid rgba(255,255,255,0.08)",
             marginTop: 70,

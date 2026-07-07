@@ -49,23 +49,37 @@ _CACHE_MAX_AGE_SECONDS = 3600  # re-fetch if cache is older than 1 hour
 # football-data.org statuses for completed matches
 _FINISHED_STATUSES = frozenset({"FINISHED", "AWARDED"})
 
-# football-data.org stage → our fixtures.stage enum
+# football-data.org stage → our fixtures.stage enum.
+# The API uses LAST_32 / LAST_16 / QUARTER_FINALS / SEMI_FINALS for WC 2026,
+# not the legacy ROUND_OF_32 etc. strings.
 _STAGE_MAP: dict[str, str] = {
     "GROUP_STAGE":   "group",
+    "LAST_32":       "round_of_32",
+    "LAST_16":       "round_of_16",
+    "QUARTER_FINALS": "quarter_final",
+    "SEMI_FINALS":   "semi_final",
+    "THIRD_PLACE":   "third_place",
+    "FINAL":         "final",
+    # Legacy strings kept for backwards compatibility with older API responses
     "ROUND_OF_32":   "round_of_32",
     "ROUND_OF_16":   "round_of_16",
     "QUARTER_FINAL": "quarter_final",
     "SEMI_FINAL":    "semi_final",
-    "FINAL":         "final",
 }
 
 # football-data.org knockout stage → fixture ID prefix
 _STAGE_PREFIX: dict[str, str] = {
+    "LAST_32":        "R32",
+    "LAST_16":        "R16",
+    "QUARTER_FINALS": "QF",
+    "SEMI_FINALS":    "SF",
+    "THIRD_PLACE":    "3PL",
+    "FINAL":          "FIN",
+    # Legacy aliases
     "ROUND_OF_32":   "R32",
     "ROUND_OF_16":   "R16",
     "QUARTER_FINAL": "QF",
     "SEMI_FINAL":    "SF",
-    "FINAL":         "FIN",
 }
 
 
@@ -217,11 +231,16 @@ def load_fixtures(matches: list[dict], conn: psycopg.Connection) -> tuple[int, i
         group = _group_letter(match.get("group"))
 
         # Parse result for completed matches.
-        # football-data.org score object:
-        #   fullTime:   score at end of normal time (90 min)
-        #   extraTime:  score at end of extra time (120 min), if played
-        #   penalties:  penalty shootout score, if played
+        # football-data.org score object for WC 2026:
+        #   regularTime:  score at 90 min
+        #   extraTime:    ADDITIONAL goals scored only during ET (not cumulative)
+        #   fullTime:     cumulative score including ET goals (but NOT penalties)
+        #                 For PENALTY_SHOOTOUT matches, fullTime may incorporate
+        #                 penalty goals — use regularTime+extraTime to be safe.
+        #   penalties:    goals scored in the penalty shootout
+        #
         # We store the score at the end of play (90 or 120 min) in home/away_goals.
+        # Penalty shootout goals are NOT included — stored via pen_winner_id instead.
         went_to_et = False
         went_to_pens = False
         home_goals: int | None = None
@@ -230,21 +249,64 @@ def load_fixtures(matches: list[dict], conn: psycopg.Connection) -> tuple[int, i
 
         if status in _FINISHED_STATUSES:
             score = match.get("score") or {}
-            ft = score.get("fullTime") or {}
+            rt = score.get("regularTime") or {}
             et = score.get("extraTime") or {}
             pens = score.get("penalties") or {}
+            ft = score.get("fullTime") or {}
 
             if et.get("home") is not None:
-                home_goals = et["home"]
-                away_goals = et["away"]
+                # Sum regularTime + extraTime to get the 120-min score.
+                rt_h = rt.get("home") or 0
+                rt_a = rt.get("away") or 0
+                home_goals = rt_h + et["home"]
+                away_goals = rt_a + et["away"]
                 went_to_et = True
-            else:
-                home_goals = ft.get("home")
-                away_goals = ft.get("away")
+            elif ft.get("home") is not None:
+                home_goals = ft["home"]
+                away_goals = ft["away"]
 
             if pens.get("home") is not None:
                 went_to_pens = True
-                pen_winner_id = home_id if (pens["home"] > pens["away"]) else away_id
+                # Determine penalty winner. Both teams score the same total in
+                # football-data.org's penalties field when sudden death is used;
+                # fall back to the score.winner field for disambiguation.
+                pen_h = pens["home"]
+                pen_a = pens["away"]
+                winner_label = (score.get("winner") or "").upper()
+                if pen_h > pen_a:
+                    pen_winner_id = home_id
+                elif pen_a > pen_h:
+                    pen_winner_id = away_id
+                elif winner_label == "HOME_TEAM":
+                    pen_winner_id = home_id
+                elif winner_label == "AWAY_TEAM":
+                    pen_winner_id = away_id
+                else:
+                    # football-data.org sometimes reports equal penalty counts
+                    # (API bug / data lag). Fall back to fullTime totals: for
+                    # PENALTY_SHOOTOUT games, fullTime includes penalty goals,
+                    # so whichever team has more in fullTime won the shootout.
+                    ft_h = ft.get("home") or 0
+                    ft_a = ft.get("away") or 0
+                    if ft_h > ft_a:
+                        pen_winner_id = home_id
+                        logger.info(
+                            "Match %d (%s vs %s): resolved pen winner from fullTime (%s-%s).",
+                            match_id, home_name, away_name, ft_h, ft_a,
+                        )
+                    elif ft_a > ft_h:
+                        pen_winner_id = away_id
+                        logger.info(
+                            "Match %d (%s vs %s): resolved pen winner from fullTime (%s-%s).",
+                            match_id, home_name, away_name, ft_h, ft_a,
+                        )
+                    else:
+                        logger.warning(
+                            "Match %d (%s vs %s): penalty winner truly ambiguous "
+                            "(pens %s-%s, fullTime %s-%s, winner=%r); defaulting to home team.",
+                            match_id, home_name, away_name, pen_h, pen_a, ft_h, ft_a, winner_label,
+                        )
+                        pen_winner_id = home_id
 
         try:
             with conn.transaction():
@@ -296,7 +358,94 @@ def load_fixtures(matches: list[dict], conn: psycopg.Connection) -> tuple[int, i
     return fixtures_count, results_count
 
 
+def cleanup_knockout_fixtures(matches: list[dict], conn: psycopg.Connection) -> int:
+    """
+    Delete knockout fixtures that were previously stored with wrong IDs.
+
+    Before the stage-map fix, knockout fixtures got a "GRP" prefix because the
+    API stage strings (LAST_32, LAST_16, etc.) were not in _STAGE_MAP. This
+    function deletes those bad rows by constructing the old wrong ID for each
+    knockout match and removing it if it exists.
+
+    Returns the number of rows deleted.
+    """
+    old_knockout_ids: list[str] = []
+    for match in matches:
+        match_id = match.get("id")
+        fd_stage = match.get("stage", "GROUP_STAGE")
+        if fd_stage == "GROUP_STAGE":
+            continue  # Group fixtures had correct IDs; skip
+        old_id = f"WC2026-GRP-{match_id}"
+        old_knockout_ids.append(old_id)
+
+    if not old_knockout_ids:
+        logger.info("No knockout fixtures with legacy IDs found; nothing to clean up.")
+        return 0
+
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT COUNT(*) FROM fixtures WHERE id = ANY(%s)",
+            (old_knockout_ids,),
+        )
+        count = cur.fetchone()[0]
+
+    if count == 0:
+        logger.info("No legacy-ID knockout fixtures found in DB; already clean.")
+        return 0
+
+    logger.info(
+        "Deleting %d knockout fixture(s) with legacy GRP prefix IDs.",
+        count,
+    )
+    # All tables that hold a FK to fixtures(id). None have ON DELETE CASCADE,
+    # so we must delete child rows in dependency order before touching fixtures.
+    child_tables = [
+        "player_match_stats",
+        "player_goal_predictions",
+        "match_analysis",
+        "match_commentary",
+        "match_momentum",
+        "match_statistics",
+        "match_events",
+        "sofascore_event_map",
+        "match_grading",
+        "market_snapshots",
+        "match_predictions",
+        "match_xg",
+        "match_trivia",
+        "match_previews",
+        "user_predictions",
+        "match_results",
+    ]
+    with conn.cursor() as cur:
+        for tbl in child_tables:
+            cur.execute(f"DELETE FROM {tbl} WHERE fixture_id = ANY(%s)", (old_knockout_ids,))  # noqa: S608
+        cur.execute("DELETE FROM fixtures WHERE id = ANY(%s)", (old_knockout_ids,))
+    conn.commit()
+    logger.info("Deleted %d legacy fixture rows (and their child records).", count)
+    return count
+
+
 def main() -> None:
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Ingest WC 2026 fixtures from football-data.org")
+    parser.add_argument(
+        "--cleanup-knockout",
+        action="store_true",
+        help=(
+            "Delete knockout fixtures stored with the legacy wrong GRP prefix "
+            "(from before the stage-map fix) then re-ingest with correct IDs. "
+            "Cascades to match_results and events for those fixtures."
+        ),
+    )
+    parser.add_argument(
+        "--force-fetch",
+        action="store_true",
+        help="Delete the local cache and force a fresh API fetch even if the cache is recent.",
+    )
+    args = parser.parse_args()
+
     load_dotenv()
     api_key = os.environ.get("FOOTBALLDATA_KEY")
     if not api_key:
@@ -312,10 +461,20 @@ def main() -> None:
     from footy.db import get_conn
     from footy.ingest.team_map import seed_name_map
 
+    if args.force_fetch and _CACHE_PATH.exists():
+        logger.info("--force-fetch: deleting cache %s", _CACHE_PATH)
+        _CACHE_PATH.unlink()
+
     matches = fetch_fixtures(api_key)
 
     with get_conn() as conn:
         seed_name_map(conn)
+
+        if args.cleanup_knockout:
+            deleted = cleanup_knockout_fixtures(matches, conn)
+            if deleted:
+                print(f"Cleaned up {deleted} legacy knockout fixture(s) from DB.")
+
         n_fix, n_res = load_fixtures(matches, conn)
 
     print(f"Upserted {n_fix} fixtures and {n_res} results into the database.")

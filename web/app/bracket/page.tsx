@@ -32,7 +32,10 @@ export default async function BracketPage() {
 
   return (
     <div style={{ animation: "ff-up 0.4s ease both", paddingTop: 46 }}>
-      <h1 style={{ fontSize: 42, fontWeight: 900, letterSpacing: "-0.03em", margin: 0 }}>Tournament Bracket</h1>
+      <h1 style={{ fontSize: 42, fontWeight: 900, letterSpacing: "-0.03em", margin: 0 }}>
+        Tournament{" "}
+        <span style={{ background: "linear-gradient(90deg,#2BE38A,#1FD0C0,#5B8CFF)", WebkitBackgroundClip: "text", backgroundClip: "text", WebkitTextFillColor: "transparent" }}>Bracket</span>
+      </h1>
       <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 12, marginBottom: 32, flexWrap: "wrap" as const }}>
         <span style={{ fontFamily: MONO, fontSize: 13, color: "#9E99B0" }}>
           <b style={{ color: "#F2F1F7" }}>{sim.n_simulations.toLocaleString()}</b> simulations

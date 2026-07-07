@@ -40,7 +40,7 @@ export default function ForecastCard({ prediction, scorers }: Props) {
   ];
   const topOutcome = outcomes.reduce((a, b) => (b.prob > a.prob ? b : a));
 
-  const topLine = scoreline_grid.length
+  const topLine = scoreline_grid?.length
     ? [...scoreline_grid].sort((a, b) => b.probability - a.probability)[0]
     : null;
   const scorelineVerdict = topLine

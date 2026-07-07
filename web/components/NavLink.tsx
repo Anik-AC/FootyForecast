@@ -7,11 +7,16 @@ interface Props {
   href: string;
   children: React.ReactNode;
   exact?: boolean;
+  activePrefix?: string;
 }
 
-export function NavLink({ href, children, exact = false }: Props) {
+export function NavLink({ href, children, exact = false, activePrefix }: Props) {
   const pathname = usePathname();
-  const isActive = exact ? pathname === href : pathname.startsWith(href) && href !== "/";
+  const isActive = activePrefix
+    ? pathname.startsWith(activePrefix)
+    : exact
+    ? pathname === href
+    : pathname.startsWith(href) && href !== "/";
 
   if (isActive) {
     return (

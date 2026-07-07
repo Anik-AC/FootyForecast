@@ -18,6 +18,7 @@ type MatchPrediction struct {
 	AwayElo              *float64               `json:"away_elo,omitempty"`
 	ActualResult         *MatchResultSummary    `json:"actual_result,omitempty"`
 	Grading              *MatchGrading          `json:"grading,omitempty"`
+	KnockoutProbs        *KnockoutProbabilities `json:"knockout_probs,omitempty"`
 }
 
 // ScorelineProbability is one cell of the scoreline grid.
@@ -40,4 +41,19 @@ type TotalsProbabilities struct {
 type ExpectedGoals struct {
 	HomeXG float64 `json:"home_xg"`
 	AwayXG float64 `json:"away_xg"`
+}
+
+// KnockoutProbabilities extends the 90-min model for knockout rounds.
+// If the match is level after 90 min it goes to ET (30 min), then penalties.
+// These fields let the frontend show "if it's a draw" scenarios without
+// altering the 90-min outcome_probabilities used for model grading.
+type KnockoutProbabilities struct {
+	// Probability each team wins across 90 min + ET + pens (full match winner).
+	HomeWinFull float64 `json:"home_win_full"`
+	AwayWinFull float64 `json:"away_win_full"`
+	// Decomposition: chance the match reaches ET and penalties.
+	GoesToET    float64 `json:"goes_to_et"`
+	GoesToPens  float64 `json:"goes_to_pens"`
+	// Conditional: given penalties are needed, who wins?
+	HomePenWin  float64 `json:"home_pen_win"`
 }

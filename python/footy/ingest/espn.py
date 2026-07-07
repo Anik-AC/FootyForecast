@@ -728,35 +728,53 @@ def ingest_match(
 # Bulk runner
 # ---------------------------------------------------------------------------
 
-def ingest_all_completed(conn: psycopg.Connection) -> None:
-    """Fetch and store ESPN data for all completed WC 2026 matches lacking player stats."""
+def ingest_all_completed(conn: psycopg.Connection, force: bool = False) -> None:
+    """Fetch and store ESPN data for all completed WC 2026 matches lacking player stats.
+
+    With force=True, re-ingest all completed matches even if data already exists.
+    Useful for backfilling match_events that may have been empty on first ingest.
+    """
     with conn.cursor() as cur:
-        cur.execute(
-            """
-            SELECT f.id, ht.name, awt.name, f.kickoff_utc
-            FROM fixtures f
-            JOIN teams ht  ON ht.id  = f.home_team_id
-            JOIN teams awt ON awt.id  = f.away_team_id
-            JOIN match_results mr ON mr.fixture_id = f.id
-            WHERE f.tournament_id = 'WC2026'
-              AND f.id NOT IN (SELECT DISTINCT fixture_id FROM player_match_stats)
-            ORDER BY f.kickoff_utc ASC
-            """
-        )
+        if force:
+            cur.execute(
+                """
+                SELECT f.id, ht.name, awt.name, f.kickoff_utc
+                FROM fixtures f
+                JOIN teams ht  ON ht.id  = f.home_team_id
+                JOIN teams awt ON awt.id  = f.away_team_id
+                JOIN match_results mr ON mr.fixture_id = f.id
+                WHERE f.tournament_id = 'WC2026'
+                ORDER BY f.kickoff_utc ASC
+                """
+            )
+        else:
+            cur.execute(
+                """
+                SELECT f.id, ht.name, awt.name, f.kickoff_utc
+                FROM fixtures f
+                JOIN teams ht  ON ht.id  = f.home_team_id
+                JOIN teams awt ON awt.id  = f.away_team_id
+                JOIN match_results mr ON mr.fixture_id = f.id
+                WHERE f.tournament_id = 'WC2026'
+                  AND f.id NOT IN (SELECT DISTINCT fixture_id FROM player_match_stats)
+                ORDER BY f.kickoff_utc ASC
+                """
+            )
         pending = cur.fetchall()
 
     if not pending:
         logger.info("All completed matches already have ESPN data.")
         return
 
-    logger.info("Ingesting ESPN data for %d pending matches", len(pending))
+    logger.info("Ingesting ESPN data for %d pending matches (force=%s)", len(pending), force)
     for fixture_id, home, away, kickoff in pending:
         try:
-            counts = ingest_match(fixture_id, home, away, kickoff, conn)
+            counts = ingest_match(fixture_id, home, away, kickoff, conn, force=force)
             if counts:
                 logger.info("  %s: %s", fixture_id, counts)
         except Exception as exc:
             logger.error("Failed to ingest %s: %s", fixture_id, exc)
+            conn.rollback()
         time.sleep(2)
 
 
@@ -767,7 +785,8 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(description="ESPN post-match data ingestion")
     parser.add_argument("--fixture", help="Specific fixture_id to ingest")
-    parser.add_argument("--force", action="store_true", help="Re-ingest even if data exists")
+    parser.add_argument("--force", action="store_true", help="Re-ingest even if data exists (use with --fixture)")
+    parser.add_argument("--force-all", action="store_true", help="Re-ingest ALL completed matches, even those with existing data")
     parser.add_argument(
         "--momentum-all",
         action="store_true",
@@ -802,6 +821,9 @@ def main() -> None:
                 sys.exit(1)
             counts = ingest_match(row[0], row[1], row[2], row[3], conn, force=args.force)
             print(f"Done: {counts}")
+        elif args.force_all:
+            ingest_all_completed(conn, force=True)
+            print("Done.")
         else:
             ingest_all_completed(conn)
             print("Done.")

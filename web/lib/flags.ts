@@ -3,9 +3,9 @@
 const FIFA_TO_ISO2: Record<string, string> = {
   // CONCACAF
   USA: "us", CAN: "ca", MEX: "mx", HON: "hn", GTM: "gt", SLV: "sv",
-  CRC: "cr", PAN: "pa", JAM: "jm", TRI: "tt", HAI: "ht", CUB: "cu",
-  // CONMEBOL
-  BRA: "br", ARG: "ar", URU: "uy", COL: "co", CHI: "cl", ECU: "ec",
+  CRC: "cr", PAN: "pa", JAM: "jm", TRI: "tt", HAI: "ht", CUB: "cu", CUW: "cw",
+  // CONMEBOL (URY and URU both appear in different sources)
+  BRA: "br", ARG: "ar", URU: "uy", URY: "uy", COL: "co", CHI: "cl", ECU: "ec",
   PAR: "py", PER: "pe", VEN: "ve", BOL: "bo",
   // UEFA
   GER: "de", FRA: "fr", ESP: "es", POR: "pt", NED: "nl", BEL: "be",
@@ -15,14 +15,14 @@ const FIFA_TO_ISO2: Record<string, string> = {
   BIH: "ba", MNE: "me", ALB: "al", GRE: "gr", TUR: "tr", ROU: "ro",
   HUN: "hu", BUL: "bg", ISL: "is", GEO: "ge", AZE: "az", ARM: "am",
   UKR: "ua", KVX: "xk",
-  // CAF
+  // CAF (RSA = South Africa in football-data.org codes)
   MAR: "ma", SEN: "sn", CMR: "cm", GHA: "gh", NGR: "ng", CIV: "ci",
-  EGY: "eg", ALG: "dz", TUN: "tn", ZAF: "za", COD: "cd", ANG: "ao",
+  EGY: "eg", ALG: "dz", TUN: "tn", ZAF: "za", RSA: "za", COD: "cd", ANG: "ao",
   MAL: "ml", ETH: "et", KEN: "ke", TAN: "tz", MOZ: "mz", ZIM: "zw",
   ZAM: "zm", UGA: "ug", RWA: "rw", GUI: "gn", GAB: "ga", CGO: "cg",
   CPV: "cv", BEN: "bj", MTN: "mr", BFA: "bf", NIG: "ne", TOG: "tg",
-  // AFC
-  JPN: "jp", KOR: "kr", AUS: "au", IRN: "ir", SAU: "sa", QAT: "qa",
+  // AFC (both SAU and KSA used across data sources)
+  JPN: "jp", KOR: "kr", AUS: "au", IRN: "ir", SAU: "sa", KSA: "sa", QAT: "qa",
   UAE: "ae", IRQ: "iq", JOR: "jo", IDN: "id", THA: "th", CHN: "cn",
   IND: "in", KUW: "kw", BHR: "bh", OMA: "om", UZB: "uz", TJK: "tj",
   KGZ: "kg", KAZ: "kz",

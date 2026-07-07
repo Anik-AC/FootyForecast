@@ -33,6 +33,7 @@ func (s *PostgresStore) GetMatches(ctx context.Context) ([]models.MatchSummary, 
 			ht.id,  ht.name,  ht.confederation,
 			awt.id, awt.name, awt.confederation,
 			mr.home_goals, mr.away_goals,
+			COALESCE(mr.went_to_et, false), COALESCE(mr.went_to_pens, false), mr.pen_winner_id,
 			mp.home_win_prob, mp.draw_prob, mp.away_win_prob,
 			ke.key_events
 		FROM fixtures f
@@ -75,6 +76,8 @@ func (s *PostgresStore) GetMatches(ctx context.Context) ([]models.MatchSummary, 
 			homeID, homeName, homeConf string
 			awayID, awayName, awayConf string
 			homeGoals, awayGoals       *int
+			wentToET, wentToPens       bool
+			penWinnerID                *string
 			homeWin, draw, awayWin     *float64
 			keyEventsJSON              []byte
 		)
@@ -83,6 +86,7 @@ func (s *PostgresStore) GetMatches(ctx context.Context) ([]models.MatchSummary, 
 			&homeID, &homeName, &homeConf,
 			&awayID, &awayName, &awayConf,
 			&homeGoals, &awayGoals,
+			&wentToET, &wentToPens, &penWinnerID,
 			&homeWin, &draw, &awayWin,
 			&keyEventsJSON,
 		); err != nil {
@@ -98,7 +102,13 @@ func (s *PostgresStore) GetMatches(ctx context.Context) ([]models.MatchSummary, 
 			AwayTeam:    models.Team{ID: awayID, Name: awayName, Confederation: awayConf},
 		}
 		if homeGoals != nil && awayGoals != nil {
-			m.Result = &models.MatchResultSummary{HomeGoals: *homeGoals, AwayGoals: *awayGoals}
+			m.Result = &models.MatchResultSummary{
+				HomeGoals:   *homeGoals,
+				AwayGoals:   *awayGoals,
+				WentToET:    wentToET,
+				WentToPens:  wentToPens,
+				PenWinnerID: penWinnerID,
+			}
 		}
 		if homeWin != nil && draw != nil && awayWin != nil {
 			m.Prediction = &models.OutcomeProbabilities{
@@ -117,21 +127,27 @@ func (s *PostgresStore) GetMatches(ctx context.Context) ([]models.MatchSummary, 
 }
 
 // GetMatchPrediction returns the latest prediction for the given fixture ID.
-// Returns ErrNotFound if the fixture does not exist or has no prediction yet.
+// Returns ErrNotFound only when the fixture itself does not exist.
+// Fixtures without a prediction yet return zero outcome probabilities.
 func (s *PostgresStore) GetMatchPrediction(ctx context.Context, matchID string) (*models.MatchPrediction, error) {
 	var (
 		fixtureID, homeID, homeName, homeConf string
 		awayID, awayName, awayConf            string
-		kickoffUTC, modelAsOf                 time.Time
-		modelVersion                          string
-		predID                                int64
-		homeWin, draw, awayWin               float64
+		kickoffUTC                            time.Time
+		modelAsOf                             *time.Time
+		modelVersion                          *string
+		predID                                *int64
+		homeWin, draw, awayWin               *float64
 		homeXG, awayXG                        *float64
 		over15, over25, over35, btts          *float64
 		homeElo, awayElo                      *float64
 	)
 
-	var resultHomeGoals, resultAwayGoals *int
+	var (
+		resultHomeGoals, resultAwayGoals *int
+		resultWentToET, resultWentToPens bool
+		resultPenWinnerID                *string
+	)
 
 	err := s.pool.QueryRow(ctx, `
 		SELECT
@@ -144,6 +160,7 @@ func (s *PostgresStore) GetMatchPrediction(ctx context.Context, matchID string) 
 			mp.home_xg, mp.away_xg,
 			mp.over_1_5, mp.over_2_5, mp.over_3_5, mp.btts,
 			mr.home_goals, mr.away_goals,
+			COALESCE(mr.went_to_et, false), COALESCE(mr.went_to_pens, false), mr.pen_winner_id,
 			(SELECT rating FROM team_ratings
 			 WHERE team_id = f.home_team_id AND rating_type = 'elo' AND as_of <= f.kickoff_utc
 			 ORDER BY as_of DESC LIMIT 1) AS home_elo,
@@ -153,11 +170,16 @@ func (s *PostgresStore) GetMatchPrediction(ctx context.Context, matchID string) 
 		FROM fixtures f
 		JOIN teams ht  ON ht.id  = f.home_team_id
 		JOIN teams awt ON awt.id = f.away_team_id
-		JOIN match_predictions mp ON mp.fixture_id = f.id
+		LEFT JOIN LATERAL (
+			SELECT id, model_as_of, model_version,
+			       home_win_prob, draw_prob, away_win_prob,
+			       home_xg, away_xg, over_1_5, over_2_5, over_3_5, btts
+			FROM match_predictions
+			WHERE fixture_id = f.id
+			ORDER BY computed_at DESC LIMIT 1
+		) mp ON true
 		LEFT JOIN match_results mr ON mr.fixture_id = f.id
 		WHERE f.id = $1
-		ORDER BY mp.computed_at DESC
-		LIMIT 1
 	`, matchID).Scan(
 		&fixtureID, &kickoffUTC,
 		&homeID, &homeName, &homeConf,
@@ -168,6 +190,7 @@ func (s *PostgresStore) GetMatchPrediction(ctx context.Context, matchID string) 
 		&homeXG, &awayXG,
 		&over15, &over25, &over35, &btts,
 		&resultHomeGoals, &resultAwayGoals,
+		&resultWentToET, &resultWentToPens, &resultPenWinnerID,
 		&homeElo, &awayElo,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -177,28 +200,42 @@ func (s *PostgresStore) GetMatchPrediction(ctx context.Context, matchID string) 
 		return nil, fmt.Errorf("query match prediction: %w", err)
 	}
 
-	// Fetch scoreline grid (0-7 goals per side).
-	rows, err := s.pool.Query(ctx, `
-		SELECT home_goals, away_goals, probability
-		FROM scoreline_probabilities
-		WHERE prediction_id = $1
-		ORDER BY home_goals, away_goals
-	`, predID)
-	if err != nil {
-		return nil, fmt.Errorf("query scoreline: %w", err)
-	}
-	defer rows.Close()
-
+	// Fetch scoreline grid only when a prediction exists.
 	var grid []models.ScorelineProbability
-	for rows.Next() {
-		var sp models.ScorelineProbability
-		if err := rows.Scan(&sp.HomeGoals, &sp.AwayGoals, &sp.Probability); err != nil {
-			return nil, fmt.Errorf("scan scoreline row: %w", err)
+	if predID != nil {
+		rows, err := s.pool.Query(ctx, `
+			SELECT home_goals, away_goals, probability
+			FROM scoreline_probabilities
+			WHERE prediction_id = $1
+			ORDER BY home_goals, away_goals
+		`, *predID)
+		if err != nil {
+			return nil, fmt.Errorf("query scoreline: %w", err)
 		}
-		grid = append(grid, sp)
+		defer rows.Close()
+
+		for rows.Next() {
+			var sp models.ScorelineProbability
+			if err := rows.Scan(&sp.HomeGoals, &sp.AwayGoals, &sp.Probability); err != nil {
+				return nil, fmt.Errorf("scan scoreline row: %w", err)
+			}
+			grid = append(grid, sp)
+		}
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("iterate scoreline: %w", err)
+		}
 	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate scoreline: %w", err)
+
+	// Resolve model version and as-of, using sentinels when no prediction exists yet.
+	resolvedModelVersion := "pending"
+	resolvedModelAsOf := time.Now()
+	if predID != nil {
+		if modelVersion != nil {
+			resolvedModelVersion = *modelVersion
+		}
+		if modelAsOf != nil {
+			resolvedModelAsOf = *modelAsOf
+		}
 	}
 
 	pred := &models.MatchPrediction{
@@ -206,12 +243,12 @@ func (s *PostgresStore) GetMatchPrediction(ctx context.Context, matchID string) 
 		HomeTeam:     models.Team{ID: homeID, Name: homeName, Confederation: homeConf},
 		AwayTeam:     models.Team{ID: awayID, Name: awayName, Confederation: awayConf},
 		MatchDate:    kickoffUTC,
-		ModelAsOf:    modelAsOf,
-		ModelVersion: modelVersion,
+		ModelAsOf:    resolvedModelAsOf,
+		ModelVersion: resolvedModelVersion,
 		OutcomeProbabilities: models.OutcomeProbabilities{
-			HomeWin: homeWin,
-			Draw:    draw,
-			AwayWin: awayWin,
+			HomeWin: deref(homeWin),
+			Draw:    deref(draw),
+			AwayWin: deref(awayWin),
 		},
 		ScorelineGrid: grid,
 		Totals: models.TotalsProbabilities{
@@ -227,7 +264,13 @@ func (s *PostgresStore) GetMatchPrediction(ctx context.Context, matchID string) 
 		pred.ExpectedGoals = &models.ExpectedGoals{HomeXG: *homeXG, AwayXG: *awayXG}
 	}
 	if resultHomeGoals != nil && resultAwayGoals != nil {
-		pred.ActualResult = &models.MatchResultSummary{HomeGoals: *resultHomeGoals, AwayGoals: *resultAwayGoals}
+		pred.ActualResult = &models.MatchResultSummary{
+			HomeGoals:   *resultHomeGoals,
+			AwayGoals:   *resultAwayGoals,
+			WentToET:    resultWentToET,
+			WentToPens:  resultWentToPens,
+			PenWinnerID: resultPenWinnerID,
+		}
 	}
 
 	// Fetch grading data if the match has been graded.
@@ -242,7 +285,7 @@ func (s *PostgresStore) GetMatchPrediction(ctx context.Context, matchID string) 
 		FROM match_grading mg
 		LEFT JOIN match_results mr ON mr.fixture_id = mg.fixture_id
 		WHERE mg.fixture_id = $1 AND mg.model_version = $2
-	`, matchID, modelVersion).Scan(
+	`, matchID, resolvedModelVersion).Scan(
 		&actualOutcome, &modelLL, &modelBS,
 		&mktLLJSON, &mktBSJSON,
 		&gradedHomeGoals, &gradedAwayGoals,

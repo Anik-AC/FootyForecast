@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { getMatches, getLatestSimulation } from "@/lib/api";
 import LocalTime from "@/components/LocalTime";
 import Link from "next/link";
@@ -10,14 +11,16 @@ const STAGE_ORDER: Record<string, number> = {
   round_of_16: 2,
   quarter_final: 3,
   semi_final: 4,
-  final: 5,
+  third_place: 5,
+  final: 6,
 };
 
 const STAGE_LABELS: Record<string, string> = {
-  round_of_32: "R32",
-  round_of_16: "R16",
-  quarter_final: "QF",
-  semi_final: "SF",
+  round_of_32: "Round of 32",
+  round_of_16: "Round of 16",
+  quarter_final: "Quarter-final",
+  semi_final: "Semi-final",
+  third_place: "3rd Place",
   final: "Final",
 };
 
@@ -26,8 +29,21 @@ const GAP = 8;
 
 function BracketCard({ match }: { match: MatchSummary }) {
   const played = match.result !== null;
-  const homeWon = played && match.result!.home_goals > match.result!.away_goals;
-  const awayWon = played && match.result!.away_goals > match.result!.home_goals;
+  const wentToPens = played && match.result!.went_to_pens;
+  const penWinnerID = played ? match.result!.pen_winner_id : undefined;
+
+  const homeWon = played && (
+    wentToPens
+      ? penWinnerID === match.home_team.id
+      : match.result!.home_goals > match.result!.away_goals
+  );
+  const awayWon = played && (
+    wentToPens
+      ? penWinnerID === match.away_team.id
+      : match.result!.away_goals > match.result!.home_goals
+  );
+
+  const resultSuffix = wentToPens ? "PENS" : (played && match.result!.went_to_et) ? "AET" : null;
 
   return (
     <Link
@@ -39,9 +55,10 @@ function BracketCard({ match }: { match: MatchSummary }) {
         background: "#120F1E",
         border: "1px solid rgba(255,255,255,0.08)",
         borderRadius: 10,
-        padding: "10px 14px",
+        padding: "8px 12px",
         textDecoration: "none",
         transition: "border-color .15s",
+        position: "relative",
       }}
       className="ff-result-card"
     >
@@ -52,7 +69,7 @@ function BracketCard({ match }: { match: MatchSummary }) {
           justifyContent: "space-between",
           gap: 4,
           fontWeight: homeWon ? 700 : 400,
-          color: homeWon ? "#F2F1F7" : "#7E7892",
+          color: homeWon ? "#F2F1F7" : played ? "#7E7892" : "#C8C3D6",
           fontSize: 13,
         }}>
           <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{match.home_team.name}</span>
@@ -65,14 +82,31 @@ function BracketCard({ match }: { match: MatchSummary }) {
             }}>{match.result!.home_goals}</span>
           )}
         </div>
-        <div style={{ height: 1, background: "rgba(255,255,255,0.06)" }} />
+
+        <div style={{ height: 1, background: "rgba(255,255,255,0.06)", position: "relative" }}>
+          {resultSuffix && (
+            <span style={{
+              position: "absolute",
+              right: 0,
+              top: -8,
+              fontFamily: MONO,
+              fontSize: 9,
+              fontWeight: 700,
+              color: wentToPens ? "#FFC23D" : "#5B8CFF",
+              letterSpacing: "0.06em",
+            }}>
+              {resultSuffix}
+            </span>
+          )}
+        </div>
+
         <div style={{
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
           gap: 4,
           fontWeight: awayWon ? 700 : 400,
-          color: awayWon ? "#F2F1F7" : "#7E7892",
+          color: awayWon ? "#F2F1F7" : played ? "#7E7892" : "#C8C3D6",
           fontSize: 13,
         }}>
           <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{match.away_team.name}</span>
@@ -85,6 +119,7 @@ function BracketCard({ match }: { match: MatchSummary }) {
             }}>{match.result!.away_goals}</span>
           )}
         </div>
+
         {!played && (
           <div style={{ fontFamily: MONO, fontSize: 10, color: "#4A4560", marginTop: 2 }}>
             <LocalTime iso={match.kickoff_utc} variant="dateonly" />
@@ -158,7 +193,7 @@ function BracketColumn({
 
         {/* Vertical bracket lines on right side */}
         {!isLast &&
-          Array.from({ length: matchCount / 2 }).map((_, pairIdx) => {
+          Array.from({ length: Math.floor(matchCount / 2) }).map((_, pairIdx) => {
             const topMatchIdx = pairIdx * 2;
             const botMatchIdx = pairIdx * 2 + 1;
             if (botMatchIdx >= matchCount) return null;
@@ -184,7 +219,7 @@ function BracketColumn({
   );
 }
 
-function SimProjection({ teams }: { teams: TeamSimulationResult[] }) {
+function SimProjection({ teams, knockoutStarted }: { teams: TeamSimulationResult[]; knockoutStarted: boolean }) {
   const sorted = [...teams]
     .filter((t) => t.stage_probabilities.round_of_32 > 0)
     .sort((a, b) => b.stage_probabilities.champion - a.stage_probabilities.champion)
@@ -192,7 +227,7 @@ function SimProjection({ teams }: { teams: TeamSimulationResult[] }) {
 
   if (sorted.length === 0) return null;
 
-  const TH: React.CSSProperties = {
+  const TH: CSSProperties = {
     fontFamily: MONO,
     fontSize: 11,
     fontWeight: 600,
@@ -206,14 +241,16 @@ function SimProjection({ teams }: { teams: TeamSimulationResult[] }) {
 
   return (
     <div>
-      <p style={{ color: "#9E99B0", fontSize: 14, margin: "0 0 20px" }}>
-        Knockout bracket will populate once the group stage concludes.
-        Probabilities below are from{" "}
-        <Link href="/bracket" style={{ color: "#5B8CFF", textDecoration: "underline", textUnderlineOffset: 3 }}>
-          Monte Carlo simulations
-        </Link>{" "}
-        of the full tournament.
-      </p>
+      {!knockoutStarted && (
+        <p style={{ color: "#9E99B0", fontSize: 14, margin: "0 0 20px" }}>
+          Knockout bracket will populate once the group stage concludes.
+          Probabilities below are from{" "}
+          <Link href="/bracket" style={{ color: "#5B8CFF", textDecoration: "underline", textUnderlineOffset: 3 }}>
+            Monte Carlo simulations
+          </Link>{" "}
+          of the full tournament.
+        </p>
+      )}
 
       <div style={{
         background: "#120F1E",
@@ -306,7 +343,10 @@ export default async function KnockoutPage() {
     getMatches(),
     getLatestSimulation(),
   ]);
-  const knockout = matchList.filter((m) => m.stage !== "group");
+
+  // Split third_place out — it doesn't belong in the main bracket column layout
+  const knockout = matchList.filter((m) => m.stage !== "group" && m.stage !== "third_place");
+  const thirdPlaceMatch = matchList.find((m) => m.stage === "third_place");
 
   const byStage = new Map<string, MatchSummary[]>();
   for (const m of knockout) {
@@ -321,15 +361,20 @@ export default async function KnockoutPage() {
     ([a], [b]) => (STAGE_ORDER[a] ?? 99) - (STAGE_ORDER[b] ?? 99)
   );
 
-  if (stages.length === 0) {
-    return <SimProjection teams={sim?.teams ?? []} />;
+  const knockoutStarted = stages.length > 0;
+
+  if (!knockoutStarted) {
+    return <SimProjection teams={sim?.teams ?? []} knockoutStarted={false} />;
   }
 
   const totalRows = stages[0][1].length;
 
   return (
     <div>
-      <p style={{ color: "#9E99B0", fontSize: 14, margin: "0 0 20px" }}>Round of 32 through to the Final</p>
+      <p style={{ color: "#9E99B0", fontSize: 14, margin: "0 0 24px" }}>
+        Round of 32 through to the Final. Click any match for full details and probabilities.
+      </p>
+
       <div style={{ overflowX: "auto", paddingBottom: 16 }}>
         <div
           style={{
@@ -351,6 +396,32 @@ export default async function KnockoutPage() {
           ))}
         </div>
       </div>
+
+      {/* Third-place match shown separately below the bracket */}
+      {thirdPlaceMatch && (
+        <div style={{ marginTop: 32 }}>
+          <div style={{
+            fontFamily: MONO,
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: "0.12em",
+            color: "#5E5875",
+            marginBottom: 12,
+          }}>
+            3RD PLACE MATCH
+          </div>
+          <div style={{ display: "inline-block" }}>
+            <BracketCard match={thirdPlaceMatch} />
+          </div>
+        </div>
+      )}
+
+      {/* Simulation projection table always shown below the bracket */}
+      {(sim?.teams?.length ?? 0) > 0 && (
+        <div style={{ marginTop: 40 }}>
+          <SimProjection teams={sim!.teams} knockoutStarted={true} />
+        </div>
+      )}
     </div>
   );
 }

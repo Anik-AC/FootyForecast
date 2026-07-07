@@ -25,10 +25,16 @@ type MatchSummary struct {
 	KeyEvents   []KeyEvent            `json:"key_events,omitempty"`
 }
 
-// MatchResultSummary is the final score (90 min or AET, no penalties).
+// MatchResultSummary is the final score at 90 min or AET (no penalties included).
+// WentToET and WentToPens indicate whether the match required extra time or a
+// penalty shootout. PenWinnerID holds the winning team's FIFA code when
+// WentToPens is true.
 type MatchResultSummary struct {
-	HomeGoals int `json:"home_goals"`
-	AwayGoals int `json:"away_goals"`
+	HomeGoals   int     `json:"home_goals"`
+	AwayGoals   int     `json:"away_goals"`
+	WentToET    bool    `json:"went_to_et"`
+	WentToPens  bool    `json:"went_to_pens"`
+	PenWinnerID *string `json:"pen_winner_id,omitempty"`
 }
 
 // H2HMatch is one historical match entry returned in a head-to-head response.

@@ -1,0 +1,2 @@
+2026/06/30 09:35:16 "GET http://localhost:8080/health HTTP/1.1" from [::1]:59369 - 200 15B in 0s
+2026/06/30 09:35:23 "GET http://localhost:8080/v1/matches?limit=300 HTTP/1.1" from [::1]:59370 - 200 37321B in 873.9998ms

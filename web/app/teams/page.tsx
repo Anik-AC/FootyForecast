@@ -57,7 +57,7 @@ export default async function TeamsPage() {
                   <span style={{ fontFamily: MONO, fontSize: 12, color: "#4A4560" }}>{confTeams.length} teams</span>
                   <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.06)" }} />
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+                <div className="ff-grid-3col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
                   {confTeams.map((team) => (
                     <Link
                       key={team.id}
@@ -71,32 +71,47 @@ export default async function TeamsPage() {
                         background: "#15131F",
                         border: "1px solid rgba(255,255,255,0.08)",
                         borderRadius: 14,
-                        padding: "13px 16px",
+                        padding: "14px 18px",
                         cursor: "pointer",
                         transition: "border-color .15s, background .15s",
                       }}
                         className="ff-team-card"
                       >
-                        <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 14, minWidth: 0 }}>
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
-                            src={flagUrl(team.id, 40)}
+                            src={flagUrl(team.id, 80)}
                             alt={team.id}
-                            style={{ width: 28, height: 19, borderRadius: 4, objectFit: "cover", border: "1px solid rgba(255,255,255,0.12)", flexShrink: 0 }}
+                            style={{ width: 44, height: 30, borderRadius: 6, objectFit: "cover", border: "1px solid rgba(255,255,255,0.12)", flexShrink: 0 }}
                           />
                           <div style={{ minWidth: 0 }}>
-                            <div style={{ fontSize: 14.5, fontWeight: 700, color: "#F2F1F7", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            <div style={{ fontSize: 15, fontWeight: 700, color: "#F2F1F7", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                               {team.name}
                             </div>
-                            {team.group && (
-                              <div style={{ fontFamily: MONO, fontSize: 11, color: "#645F77", marginTop: 2 }}>
-                                Group {team.group}
-                              </div>
-                            )}
+                            <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 5 }}>
+                              <span style={{
+                                fontFamily: MONO,
+                                fontSize: 10,
+                                fontWeight: 700,
+                                letterSpacing: "0.06em",
+                                color: color,
+                                background: `${color}22`,
+                                border: `1px solid ${color}44`,
+                                borderRadius: 5,
+                                padding: "2px 6px",
+                              }}>
+                                {conf}
+                              </span>
+                              {team.group && (
+                                <span style={{ fontFamily: MONO, fontSize: 11, color: "#645F77" }}>
+                                  Group {team.group}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
                         {team.elo_rating != null && (
-                          <span style={{ fontFamily: MONO, fontSize: 13, fontWeight: 700, color: eloColor(team.elo_rating), flexShrink: 0, marginLeft: 8 }}>
+                          <span style={{ fontFamily: MONO, fontSize: 14, fontWeight: 700, color: eloColor(team.elo_rating), flexShrink: 0, marginLeft: 8 }}>
                             {Math.round(team.elo_rating)}
                           </span>
                         )}

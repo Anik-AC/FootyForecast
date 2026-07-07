@@ -1,4 +1,5 @@
 import type { MatchSummary } from "@/lib/types";
+import { flagUrl } from "@/lib/flags";
 
 const MONO = "'JetBrains Mono',monospace";
 
@@ -32,8 +33,16 @@ export default function TeamForm({ teamID, teamName, matches }: Props) {
 
   return (
     <div>
-      <div style={{ fontFamily: MONO, fontSize: 11, fontWeight: 700, color: "#645F77", letterSpacing: "0.1em", marginBottom: 10 }}>
-        {teamName.toUpperCase()}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={flagUrl(teamID, 80)}
+          alt={teamID}
+          style={{ width: 22, height: 15, borderRadius: 3, objectFit: "cover", border: "1px solid rgba(255,255,255,0.12)", flexShrink: 0 }}
+        />
+        <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 700, color: "#9E99B0", letterSpacing: "0.1em" }}>
+          {teamID}
+        </span>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
         {reversed.map((m) => {

@@ -2,6 +2,34 @@
 
 Dated, append-only record of what changed and why. Newest entries at the top.
 
+## 2026-07-08: Predictions Bracket page
+
+Added `/predictions` page (`web/app/predictions/page.tsx`) - a visual knockout bracket that cascades model predictions from QF through SF to Final.
+
+Logic: QF cards use actual scores when played, otherwise prediction home/away win probabilities (normalized to 100%). SF and Final cards use actual fixtures from the API when available; otherwise projected matchups are built from QF predicted winners and compared by simulation champion probability to pick the predicted winner. The "PROJECTED" badge distinguishes inferred matchups from real fixtures. The predicted champion is displayed in a gold banner at the top.
+
+Connector lines are drawn with CSS borders using absolute positioning within fixed-height flex columns, ensuring QF/SF vertical midpoints align precisely. Added "Bracket" nav item (linking to `/predictions`) to both the desktop nav in `layout.tsx` and the mobile drawer in `MobileNav.tsx`.
+
+## 2026-07-08: Round of 16 data update, home page hero, stats grading
+
+### Data pipeline
+
+Ingested all available R16 results from football-data.org (95 results total in DB, 7 of 8 R16 matches confirmed; SUI vs COL was still "TIMED" in the API at time of writing and will be pulled on next ingest run). Ran `footy.models.predict --retroactive` to generate retroactive predictions for 7 completed R16 fixtures and live predictions for 4 upcoming fixtures (WC2026-R16-537382 and 3 QF matches). Ran `footy.grading` to compute log loss and Brier scores for all 148 predicted+completed matches, up from 6 rows that existed before. The calibration endpoint (`GET /v1/calibration`) and stats page now reflect accurate out-of-sample stats: **63.5% accuracy** (87 correct of 137 OOS predictions). The 11 retroactive predictions (all R16 + some R32) are correctly excluded from OOS headline numbers.
+
+### Home page hero (page.tsx)
+
+Fixed two issues: the hero spotlight gradient was hardcoded to generic green/blue, and the upcoming match window was limited to 48 hours so QF fixtures (4-7 days out) never appeared.
+
+Imported `teamColor` and `hexToRgba` from `web/lib/teamColors.ts`. The featured match spotlight now computes `homeHex` and `awayHex` from the actual team colors and builds a `linear-gradient(105deg, homeColor, dark, dark, awayColor)` background. Probability % numbers and the probability bar also use team colors instead of hardcoded accent colors. Added `stageLabel(id)` helper to derive the spotlight badge text ("QUARTER-FINAL" etc.) from the match ID instead of a hardcoded string. Upcoming window extended from 48 hours to 7 days.
+
+### Go API: ET/pens fields in match list
+
+`GetMatches` was missing `went_to_et`, `went_to_pens`, `pen_winner_id` from its SELECT statement. The bracket page and `MatchCard` ResultCard use these to determine the correct match winner and show AET/PENS badges, but they were always getting false/null because the list endpoint did not fetch them. Added the three fields to the SELECT (with COALESCE for the booleans) and to the scan/struct construction, which now populates `MatchResultSummary.WentToET`, `WentToPens`, `PenWinnerID` correctly for all completed knockout matches.
+
+### ESPN ingest: transaction rollback fix
+
+`ingest_all_completed` used a single connection for all fixtures in the loop. If any fixture's ingest threw (e.g., a Supabase statement timeout on `match_momentum` DELETE during `--force-all`), the aborted transaction blocked every subsequent fixture in the same session. Added `conn.rollback()` in the except block so a single failure is isolated and the loop continues with the next fixture.
+
 ## 2026-06-19: Full frontend redesign (dark theme, design system)
 
 Complete visual overhaul of every page and component in `web/`. The site previously used Tailwind utility classes with a light/mixed theme; it now has a consistent dark design system matching the design files in `Design/`.

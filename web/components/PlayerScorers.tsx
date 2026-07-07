@@ -96,18 +96,13 @@ export default function PlayerScorers({ data }: Props) {
       borderRadius: 16,
       padding: "20px 24px",
     }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-        <span style={{ fontSize: 14, fontWeight: 700, color: "#F2F1F7" }}>Probable Goalscorers</span>
-        <span style={{
-          fontFamily: MONO,
-          fontSize: 11,
-          color: "#9E99B0",
-          background: "#1D1A2A",
-          padding: "4px 10px",
-          borderRadius: 7,
-        }}>
-          2025/26 club xG
-        </span>
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ fontFamily: MONO, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", color: "#9E99B0", marginBottom: 4 }}>
+          GOAL THREATS
+        </div>
+        <div style={{ fontSize: 12.5, color: "#4A4560" }}>
+          Anytime-scorer probability from tournament goal share and team xG.
+        </div>
       </div>
       <div style={{ display: "flex", gap: 0 }}>
         <TeamColumn team={data.home_team} side="home" />

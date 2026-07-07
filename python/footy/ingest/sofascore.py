@@ -265,7 +265,7 @@ def ingest_events(event_id: int, fixture_id: str, conn: psycopg.Connection, http
             "goal": "goal",
             "ownGoal": "own_goal",
             "yellowCard": "yellow_card",
-            "yellowRedCard": "yellow_card",
+            "yellowRedCard": "yellow_red_card",
             "redCard": "red_card",
             "substitution": "substitution",
             "varDecision": "var",

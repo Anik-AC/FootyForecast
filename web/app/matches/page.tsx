@@ -20,7 +20,10 @@ export default async function MatchesPage() {
 
   return (
     <div style={{ animation: "ff-up 0.4s ease both", paddingTop: 46 }}>
-      <h1 style={{ fontSize: 42, fontWeight: 900, letterSpacing: "-0.03em", margin: 0 }}>Upcoming Matches</h1>
+      <h1 className="ff-page-h1" style={{ fontSize: 42, fontWeight: 900, letterSpacing: "-0.03em", margin: 0 }}>
+        Upcoming{" "}
+        <span style={{ background: "linear-gradient(90deg,#2BE38A,#1FD0C0,#5B8CFF)", WebkitBackgroundClip: "text", backgroundClip: "text", WebkitTextFillColor: "transparent" }}>Matches</span>
+      </h1>
       <div style={{ color: "#9E99B0", fontSize: 15, marginTop: 10 }}>
         <b style={{ color: "#F2F1F7" }}>{upcoming.length}</b> matches remaining
       </div>
@@ -38,7 +41,7 @@ export default async function MatchesPage() {
                 </span>
                 <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.06)" }} />
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <div className="ff-grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
                 {dayMatches.map((m) => <MatchCard key={m.id} match={m} />)}
               </div>
             </div>

@@ -2,12 +2,13 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 export function NavDropdown() {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
+  const router = useRouter();
   const isActive = pathname.startsWith("/standings");
 
   useEffect(() => {
@@ -17,6 +18,9 @@ export function NavDropdown() {
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
+
+  // Close dropdown on route change
+  useEffect(() => { setOpen(false); }, [pathname]);
 
   const activeStyle: React.CSSProperties = {
     color: "#2BE38A",
@@ -32,10 +36,18 @@ export function NavDropdown() {
     fontWeight: 500,
   };
 
+  function handleTrigger() {
+    if (!open) {
+      // Navigate to groups as the default standings page
+      router.push("/standings/groups");
+    }
+    setOpen((o) => !o);
+  }
+
   return (
     <div ref={ref} style={{ position: "relative" }}>
       <button
-        onClick={() => setOpen((o) => !o)}
+        onClick={handleTrigger}
         className="ff-nav-item"
         style={{
           cursor: "pointer",

@@ -207,7 +207,10 @@ export default async function HydrationPage() {
         ← Tournament Stats
       </Link>
 
-      <h1 style={{ fontSize: 38, fontWeight: 900, letterSpacing: "-0.03em", margin: 0 }}>Hydration Break Analysis</h1>
+      <h1 style={{ fontSize: 38, fontWeight: 900, letterSpacing: "-0.03em", margin: 0 }}>
+        Hydration Break{" "}
+        <span style={{ background: "linear-gradient(90deg,#2BE38A,#1FD0C0,#5B8CFF)", WebkitBackgroundClip: "text", backgroundClip: "text", WebkitTextFillColor: "transparent" }}>Analysis</span>
+      </h1>
       <p style={{ color: "#9E99B0", fontSize: 14.5, marginTop: 12, maxWidth: 640, lineHeight: 1.6 }}>
         FIFA mandates cooling breaks when pitch-level temperature exceeds 32°C. We track whether
         these breaks alter match momentum or trigger scoring.

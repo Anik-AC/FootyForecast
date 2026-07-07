@@ -48,3 +48,74 @@ html, body {
 .ff-bracket-row.ff-selected {
   background: rgba(43, 227, 138, 0.06) !important;
 }
+
+/* ============================================================
+   RESPONSIVE LAYOUT HELPERS
+   Desktop defaults: desktop nav visible, mobile button hidden.
+   Grids, container, and hero classes flip at 640px.
+   ============================================================ */
+
+.ff-desktop-nav    { display: flex; }
+.ff-mobile-nav-btn { display: none; }
+
+/* Hero tagline: desktop shows single row, mobile shows 3-line centred block */
+.ff-tagline-desktop { display: flex; }
+.ff-tagline-mobile  { display: none; }
+
+@media (max-width: 640px) {
+  /* Nav */
+  .ff-desktop-nav    { display: none !important; }
+  .ff-mobile-nav-btn { display: flex !important; }
+
+  /* Hero tagline */
+  .ff-tagline-desktop { display: none !important; }
+  .ff-tagline-mobile  { display: flex !important; }
+
+  /* Container padding */
+  .ff-page-container { padding-left: 16px !important; padding-right: 16px !important; }
+
+  /* Hero */
+  .ff-hero-header {
+    padding-top: 28px !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 4px !important;
+  }
+  .ff-hero-h1 { font-size: 34px !important; line-height: 1.05 !important; }
+  .ff-hero-stats { flex-wrap: wrap !important; gap: 8px !important; font-size: 13px !important; }
+
+  /* Spotlight card inner padding */
+  .ff-spotlight-inner { padding: 16px 14px 18px !important; }
+
+  /* Spotlight 3-col grid: tighter gap, smaller content */
+  .ff-spotlight-teams { gap: 8px !important; }
+  .ff-spotlight-flag  { width: 56px !important; height: 38px !important; }
+  .ff-spotlight-name  { font-size: 16px !important; letter-spacing: -0.01em !important; }
+  .ff-spotlight-pct   { font-size: 20px !important; }
+  .ff-spotlight-draw  { font-size: 12px !important; padding: 6px 8px !important; }
+
+  /* Generic 2-col → 1-col */
+  .ff-grid-2col { grid-template-columns: 1fr !important; }
+
+  /* Teams 3-col → 2-col */
+  .ff-grid-3col { grid-template-columns: 1fr 1fr !important; }
+
+  /* Page H1s */
+  .ff-page-h1 { font-size: 30px !important; letter-spacing: -0.02em !important; }
+
+  /* Match card: compact upcoming card — reduce flag size */
+  .ff-upcoming-flag { width: 28px !important; height: 20px !important; }
+
+  /* 4-col and 5-col stat grids → 2-col on mobile */
+  .ff-grid-4col { grid-template-columns: 1fr 1fr !important; }
+  .ff-grid-5col { grid-template-columns: 1fr 1fr !important; }
+
+  /* Stat bars: use simpler layout on mobile */
+  .ff-stat-bars-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  /* MatchStatBars: shrink label columns */
+  .ff-match-stat-bars { font-size: 12px !important; }
+}

@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { MatchSummary } from "@/lib/types";
 import LocalTime from "@/components/LocalTime";
 import { flagUrl } from "@/lib/flags";
+import { teamColor, hexToRgba } from "@/lib/teamColors";
 
 interface NewsItem { title: string; link: string; source: string; pubDate: string }
 
@@ -21,6 +22,17 @@ async function fetchHomeNews(): Promise<NewsItem[]> {
       pubDate: item.match(/<pubDate>([\s\S]*?)<\/pubDate>/)?.[1]?.trim() ?? "",
     })).filter((i) => i.title);
   } catch { return []; }
+}
+
+function stageLabel(id: string): string {
+  if (id.includes("-GRP-")) return "";
+  if (id.includes("-R32-")) return " · ROUND OF 32";
+  if (id.includes("-R16-")) return " · ROUND OF 16";
+  if (id.includes("-QF-"))  return " · QUARTER-FINAL";
+  if (id.includes("-SF-"))  return " · SEMI-FINAL";
+  if (id.includes("-3P-"))  return " · 3RD PLACE";
+  if (id.includes("-FIN-")) return " · FINAL";
+  return "";
 }
 
 function groupByDate(matches: MatchSummary[]): Map<string, MatchSummary[]> {
@@ -48,8 +60,8 @@ export default async function HomePage() {
   const [matches, news] = await Promise.all([getMatches(), fetchHomeNews()]);
 
   const now = new Date();
-  const cutoffFuture = new Date(now.getTime() + 48 * 60 * 60 * 1000);
-  const cutoffPast = new Date(now.getTime() - 48 * 60 * 60 * 1000);
+  const cutoffFuture = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+  const cutoffPast = new Date(now.getTime() - 72 * 60 * 60 * 1000);
 
   const upcoming = matches.filter((m) => m.result === null && new Date(m.kickoff_utc) <= cutoffFuture);
   const recent = matches.filter((m) => m.result !== null && new Date(m.kickoff_utc) >= cutoffPast);
@@ -99,13 +111,19 @@ export default async function HomePage() {
       </div>
 
       {/* Featured spotlight */}
-      {featured && featured.prediction && (
+      {featured && (() => {
+        const homeHex = teamColor(featured.home_team.id);
+        const awayHex = teamColor(featured.away_team.id);
+        const homeClr = hexToRgba(homeHex, 0.5);
+        const awayClr = hexToRgba(awayHex, 0.5);
+        const heroGradient = `linear-gradient(105deg, ${homeClr} 0%, rgba(22,17,33,0.88) 35%, rgba(16,12,26,0.94) 62%, ${awayClr} 100%), #0B0A12`;
+        return (
         <Link href={`/matches/${featured.id}`} style={{ textDecoration: "none", display: "block", marginTop: 30 }}>
           <div style={{
             borderRadius: 24,
             overflow: "hidden",
             border: "1px solid rgba(255,255,255,0.1)",
-            background: "linear-gradient(105deg, rgba(43,227,138,0.18) 0%, rgba(22,17,33,0.86) 35%, rgba(16,12,26,0.92) 62%, rgba(91,140,255,0.18) 100%), #0B0A12",
+            background: heroGradient,
             cursor: "pointer",
           }}>
             <div style={{ padding: "26px 32px 30px" }}>
@@ -121,7 +139,7 @@ export default async function HomePage() {
                   padding: "5px 11px",
                   borderRadius: 8,
                 }}>
-                  ⭐ SPOTLIGHT{featured.group_letter ? ` · Group ${featured.group_letter}` : ""}
+                  ⭐ SPOTLIGHT{featured.group_letter ? ` · Group ${featured.group_letter}` : stageLabel(featured.id)}
                 </span>
                 <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 13, color: "#9E99B0" }}>
                   <LocalTime iso={featured.kickoff_utc} variant="kickoff" />
@@ -132,43 +150,52 @@ export default async function HomePage() {
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={flagUrl(featured.home_team.id)} alt={featured.home_team.id} style={{ width: 96, height: 64, borderRadius: 11, objectFit: "cover", border: "1px solid rgba(255,255,255,0.16)", boxShadow: "0 6px 22px rgba(0,0,0,0.4)", display: "block" }} />
                   <div style={{ fontSize: 30, fontWeight: 800, letterSpacing: "-0.02em" }}>{featured.home_team.name}</div>
-                  <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 30, fontWeight: 700, color: "#2BE38A" }}>
-                    {Math.round(featured.prediction.home_win * 100)}%
-                  </div>
+                  {featured.prediction != null && (
+                    <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 30, fontWeight: 700, color: homeHex }}>
+                      {Math.round(featured.prediction.home_win * 100)}%
+                    </div>
+                  )}
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
                   <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 13, color: "#645F77", letterSpacing: "0.1em" }}>VS</span>
-                  <div style={{
-                    fontFamily: "'JetBrains Mono',monospace",
-                    fontSize: 18,
-                    fontWeight: 700,
-                    color: "#FFC23D",
-                    background: "#0B0A12",
-                    border: "1px solid rgba(255,194,61,0.3)",
-                    padding: "9px 16px",
-                    borderRadius: 10,
-                  }}>
-                    DRAW {Math.round(featured.prediction.draw * 100)}%
-                  </div>
+                  {featured.prediction != null && (
+                    <div style={{
+                      fontFamily: "'JetBrains Mono',monospace",
+                      fontSize: 18,
+                      fontWeight: 700,
+                      color: "#FFC23D",
+                      background: "#0B0A12",
+                      border: "1px solid rgba(255,194,61,0.3)",
+                      padding: "9px 16px",
+                      borderRadius: 10,
+                    }}>
+                      DRAW {Math.round(featured.prediction.draw * 100)}%
+                    </div>
+                  )}
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 14 }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={flagUrl(featured.away_team.id)} alt={featured.away_team.id} style={{ width: 96, height: 64, borderRadius: 11, objectFit: "cover", border: "1px solid rgba(255,255,255,0.16)", boxShadow: "0 6px 22px rgba(0,0,0,0.4)", display: "block" }} />
                   <div style={{ fontSize: 30, fontWeight: 800, letterSpacing: "-0.02em", textAlign: "right" }}>{featured.away_team.name}</div>
-                  <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 30, fontWeight: 700, color: "#5B8CFF" }}>
-                    {Math.round(featured.prediction.away_win * 100)}%
-                  </div>
+                  {featured.prediction != null && (
+                    <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 30, fontWeight: 700, color: awayHex }}>
+                      {Math.round(featured.prediction.away_win * 100)}%
+                    </div>
+                  )}
                 </div>
               </div>
-              <div style={{ display: "flex", height: 10, borderRadius: 99, overflow: "hidden", background: "#1D1A2A", marginTop: 26 }}>
-                <div style={{ width: `${Math.round(featured.prediction.home_win * 100)}%`, background: "linear-gradient(90deg,#2BE38A,#1FD0C0)" }} />
-                <div style={{ width: `${Math.round(featured.prediction.draw * 100)}%`, background: "#FFC23D" }} />
-                <div style={{ width: `${Math.round(featured.prediction.away_win * 100)}%`, background: "linear-gradient(90deg,#5B8CFF,#A35CFF)" }} />
-              </div>
+              {featured.prediction != null && (
+                <div style={{ display: "flex", height: 10, borderRadius: 99, overflow: "hidden", background: "#1D1A2A", marginTop: 26 }}>
+                  <div style={{ width: `${Math.round(featured.prediction.home_win * 100)}%`, background: homeHex }} />
+                  <div style={{ width: `${Math.round(featured.prediction.draw * 100)}%`, background: "#FFC23D" }} />
+                  <div style={{ width: `${Math.round(featured.prediction.away_win * 100)}%`, background: awayHex }} />
+                </div>
+              )}
             </div>
           </div>
         </Link>
-      )}
+        );
+      })()}
 
       {/* Upcoming */}
       {upcoming.length > 0 && (

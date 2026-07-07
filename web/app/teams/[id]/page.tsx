@@ -72,14 +72,17 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
 
   const news = await fetchTeamNews(team.name);
 
-  const played = team.fixtures.filter((m: MatchSummary) => m.result !== null);
-  const upcoming = team.fixtures.filter((m: MatchSummary) => m.result === null);
+  const fixtures = team.fixtures ?? [];
+  const players  = team.players  ?? [];
+
+  const played   = fixtures.filter((m: MatchSummary) => m.result !== null);
+  const upcoming = fixtures.filter((m: MatchSummary) => m.result === null);
 
   const modelStats = calibration
     ? teamAccuracy(calibration.matches, team.id)
     : null;
 
-  const hasPlayers = team.players.length > 0;
+  const hasPlayers = players.length > 0;
 
   return (
     <div style={{ animation: "ff-up 0.4s ease both", paddingTop: 46 }}>
@@ -131,7 +134,16 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
               </span>
             )}
             {team.elo_rating != null && (
-              <span style={{ fontFamily: MONO, fontSize: 13, color: "#9E99B0" }}>
+              <span style={{
+                fontFamily: MONO,
+                fontSize: 12,
+                fontWeight: 600,
+                color: "#9E99B0",
+                background: "#1D1A2A",
+                padding: "4px 10px",
+                borderRadius: 7,
+                border: "1px solid rgba(255,255,255,0.1)",
+              }}>
                 Elo <b style={{ color: "#F2F1F7" }}>{Math.round(team.elo_rating)}</b>
               </span>
             )}
@@ -140,23 +152,16 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
 
         {/* W/D/L record */}
         {team.record.played > 0 && (
-          <div style={{ display: "flex", gap: 2, flexShrink: 0 }}>
+          <div style={{ display: "flex", gap: 28, flexShrink: 0, alignItems: "flex-start" }}>
             {[
-              { label: "W", value: team.record.won, color: "#2BE38A" },
-              { label: "D", value: team.record.drawn, color: "#9E99B0" },
-              { label: "L", value: team.record.lost, color: "#FF5D6A" },
-              { label: "GF/GA", value: `${team.record.gf}/${team.record.ga}`, color: "#F2F1F7" },
+              { label: "W",     value: team.record.won,  color: "#2BE38A" },
+              { label: "D",     value: team.record.drawn, color: "#9E99B0" },
+              { label: "L",     value: team.record.lost,  color: "#FF5D6A" },
+              { label: "GF–GA", value: `${team.record.gf}–${team.record.ga}`, color: "#F2F1F7" },
             ].map((stat) => (
-              <div key={stat.label} style={{
-                background: "#15131F",
-                border: "1px solid rgba(255,255,255,0.07)",
-                borderRadius: 12,
-                padding: "10px 16px",
-                textAlign: "center",
-                minWidth: 52,
-              }}>
-                <div style={{ fontFamily: MONO, fontSize: 20, fontWeight: 800, color: stat.color }}>{stat.value}</div>
-                <div style={{ fontFamily: MONO, fontSize: 10, color: "#645F77", marginTop: 3, letterSpacing: "0.06em" }}>{stat.label}</div>
+              <div key={stat.label} style={{ textAlign: "center" }}>
+                <div style={{ fontFamily: MONO, fontSize: 22, fontWeight: 800, color: stat.color, lineHeight: 1 }}>{stat.value}</div>
+                <div style={{ fontFamily: MONO, fontSize: 10, color: "#645F77", marginTop: 5, letterSpacing: "0.08em" }}>{stat.label}</div>
               </div>
             ))}
           </div>
@@ -236,7 +241,7 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
                 </tr>
               </thead>
               <tbody>
-                {team.players.map((p, i) => (
+                {players.map((p, i) => (
                   <tr key={i} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
                     <td style={{ paddingLeft: 18, paddingTop: 11, paddingBottom: 11, fontWeight: 600, fontSize: 14, color: "#F2F1F7" }}>
                       {p.player_name}
@@ -265,7 +270,7 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
       {upcoming.length > 0 && (
         <>
           <SectionHeader color="#2BE38A" label="UPCOMING" />
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div className="ff-grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             {upcoming.map((m) => <MatchCard key={m.id} match={m} />)}
           </div>
         </>
@@ -275,7 +280,7 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
       {played.length > 0 && (
         <>
           <SectionHeader color="#5B8CFF" label="RESULTS" />
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, alignItems: "start" }}>
+          <div className="ff-grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, alignItems: "start" }}>
             {[...played].reverse().map((m) => <MatchCard key={m.id} match={m} />)}
           </div>
         </>

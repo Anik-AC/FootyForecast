@@ -2,6 +2,18 @@ import Link from "next/link";
 import type { MatchSummary, OutcomeProbabilities, MatchResultSummary, KeyEvent } from "@/lib/types";
 import LocalTime from "./LocalTime";
 import { flagUrl } from "@/lib/flags";
+import { teamColor } from "@/lib/teamColors";
+
+function hexToRgb(h: string): string {
+  const x = h.replace("#", "");
+  return `${parseInt(x.slice(0, 2), 16)},${parseInt(x.slice(2, 4), 16)},${parseInt(x.slice(4, 6), 16)}`;
+}
+
+function heroGrad(homeId: string, awayId: string): string {
+  const hc = teamColor(homeId);
+  const ac = teamColor(awayId);
+  return `linear-gradient(105deg, rgba(${hexToRgb(hc)},0.45) 0%, rgba(22,17,33,0.88) 35%, rgba(16,12,26,0.94) 62%, rgba(${hexToRgb(ac)},0.42) 100%), #0B0A12`;
+}
 
 function stageLabel(stage: string, group: string | null): string {
   if (stage === "group" && group) return `Group Stage · Group ${group}`;
@@ -20,11 +32,6 @@ function actualOutcome(r: MatchResultSummary): "home_win" | "draw" | "away_win" 
   return "draw";
 }
 
-function scorerText(events: KeyEvent[]): string {
-  return events
-    .map((e) => `${e.player_name ?? ""}${e.incident_type === "own_goal" ? " (OG)" : ""} ${e.minute}'`)
-    .join(", ");
-}
 
 const Flag = ({ teamId, size = 54 }: { teamId: string; size?: number }) => (
   <span style={{
@@ -52,12 +59,11 @@ function UpcomingCard({ match }: { match: MatchSummary }) {
   const h = p ? Math.round(p.home_win * 100) : null;
   const d = p ? Math.round(p.draw * 100) : null;
   const a = p ? Math.round(p.away_win * 100) : null;
-
   return (
     <Link href={`/matches/${match.id}`} style={{ textDecoration: "none", display: "block" }}>
       <div style={{
-        background: "#15131F",
-        border: "1px solid rgba(255,255,255,0.08)",
+        background: heroGrad(match.home_team.id, match.away_team.id),
+        border: "1px solid rgba(255,255,255,0.09)",
         borderRadius: 16,
         padding: "18px 22px",
         cursor: "pointer",
@@ -119,29 +125,33 @@ function ResultCard({ match }: { match: MatchSummary }) {
   const d = p ? Math.round(p.draw * 100) : null;
   const a = p ? Math.round(p.away_win * 100) : null;
 
-  const homeWon = result.home_goals > result.away_goals;
-  const awayWon = result.away_goals > result.home_goals;
+  const wentToPens = result.went_to_pens;
+  const penWinnerID = result.pen_winner_id;
+  // In penalties, score is level — winner is the pen winner
+  const homeWon = wentToPens
+    ? penWinnerID === match.home_team.id
+    : result.home_goals > result.away_goals;
+  const awayWon = wentToPens
+    ? penWinnerID === match.away_team.id
+    : result.away_goals > result.home_goals;
 
   const modelCorrect = p ? topPick(p) === actualOutcome(result) : null;
 
-  const homeGoalEvents = (match.key_events ?? []).filter(
-    (e) => (e.incident_type === "goal" || e.incident_type === "own_goal") && e.is_home
-  );
-  const awayGoalEvents = (match.key_events ?? []).filter(
-    (e) => (e.incident_type === "goal" || e.incident_type === "own_goal") && !e.is_home
-  );
-  const homeRed = (match.key_events ?? []).some(
-    (e) => (e.incident_type === "red_card" || e.incident_type === "yellow_red_card") && e.is_home
-  );
-  const awayRed = (match.key_events ?? []).some(
-    (e) => (e.incident_type === "red_card" || e.incident_type === "yellow_red_card") && !e.is_home
-  );
+  // All goals + cards sorted chronologically
+  const allEvents = (match.key_events ?? [])
+    .filter((e) =>
+      e.incident_type === "goal" ||
+      e.incident_type === "own_goal" ||
+      e.incident_type === "red_card" ||
+      e.incident_type === "yellow_red_card"
+    )
+    .sort((a, b) => a.minute - b.minute);
 
   return (
     <Link href={`/matches/${match.id}`} style={{ textDecoration: "none", display: "block" }}>
       <div style={{
-        background: "#120F1E",
-        border: "1px solid rgba(255,255,255,0.07)",
+        background: heroGrad(match.home_team.id, match.away_team.id),
+        border: "1px solid rgba(255,255,255,0.09)",
         borderRadius: 16,
         padding: "18px 22px",
         cursor: "pointer",
@@ -167,17 +177,31 @@ function ResultCard({ match }: { match: MatchSummary }) {
               {match.home_team.name}
             </span>
           </div>
-          <div style={{
-            fontFamily: "'JetBrains Mono',monospace",
-            fontSize: 34,
-            fontWeight: 700,
-            display: "flex",
-            alignItems: "center",
-            gap: 14,
-          }}>
-            <span style={{ color: homeWon ? "#2BE38A" : "#F2F1F7" }}>{result.home_goals}</span>
-            <span style={{ color: "#4A4560", fontSize: 24 }}>–</span>
-            <span style={{ color: awayWon ? "#2BE38A" : "#F2F1F7" }}>{result.away_goals}</span>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}>
+            <div style={{
+              fontFamily: "'JetBrains Mono',monospace",
+              fontSize: 34,
+              fontWeight: 700,
+              display: "flex",
+              alignItems: "center",
+              gap: 14,
+            }}>
+              <span style={{ color: homeWon ? "#2BE38A" : "#F2F1F7" }}>{result.home_goals}</span>
+              <span style={{ color: "#4A4560", fontSize: 24 }}>–</span>
+              <span style={{ color: awayWon ? "#2BE38A" : "#F2F1F7" }}>{result.away_goals}</span>
+            </div>
+            {result.went_to_pens && (
+              <span style={{
+                fontFamily: "'JetBrains Mono',monospace", fontSize: 10, fontWeight: 700,
+                color: "#FFC23D", letterSpacing: "0.08em",
+              }}>PENS</span>
+            )}
+            {result.went_to_et && !result.went_to_pens && (
+              <span style={{
+                fontFamily: "'JetBrains Mono',monospace", fontSize: 10, fontWeight: 700,
+                color: "#5B8CFF", letterSpacing: "0.08em",
+              }}>AET</span>
+            )}
           </div>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, textAlign: "center" }}>
             <Flag teamId={match.away_team.id} size={54} />
@@ -187,35 +211,63 @@ function ResultCard({ match }: { match: MatchSummary }) {
           </div>
         </div>
 
-        {/* Scorers row */}
-        {(homeGoalEvents.length > 0 || awayGoalEvents.length > 0) && (
+        {/* Events: goals + red cards, one row each, sorted by minute */}
+        {allEvents.length > 0 && (
           <>
-            <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "18px 0 16px" }} />
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 26px 1fr", alignItems: "start", gap: 12 }}>
-              <div style={{ fontSize: 13, color: "#9E99B0", lineHeight: 1.6 }}>
-                {scorerText(homeGoalEvents)}
-              </div>
-              <div style={{ display: "flex", justifyContent: "center", paddingTop: 2 }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                  <circle cx="12" cy="12" r="9.2" stroke="#7E7892" strokeWidth="1.4" />
-                  <path d="M12 7.4l2.6 1.9-1 3.05h-3.2l-1-3.05L12 7.4z" fill="#7E7892" />
-                  <path d="M12 7.4V5M14.6 9.3l2-1.1M13.6 12.35l1.9 1.5M10.4 12.35l-1.9 1.5M9.4 9.3l-2-1.1" stroke="#7E7892" strokeWidth="1.1" strokeLinecap="round" />
-                </svg>
-              </div>
-              <div style={{ fontSize: 13, color: "#9E99B0", lineHeight: 1.6, textAlign: "right" }}>
-                {scorerText(awayGoalEvents)}
-              </div>
+            <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "18px 0 14px" }} />
+            <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+              {allEvents.map((e, i) => {
+                const minuteStr = `${e.minute}'`;
+                const name = e.player_name
+                  ? `${e.player_name}${e.incident_type === "own_goal" ? " (OG)" : ""}`
+                  : "";
+                const isGoal = e.incident_type === "goal" || e.incident_type === "own_goal";
+
+                return (
+                  <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 22px 1fr", alignItems: "center", gap: 8 }}>
+                    {/* Home side — right-aligned */}
+                    <div style={{ textAlign: "right" }}>
+                      {e.is_home && (
+                        <span style={{ fontSize: 12.5, color: "#9E99B0" }}>
+                          {name}{" "}
+                          <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: "#5E6B7A" }}>{minuteStr}</span>
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Center icon */}
+                    <div style={{ display: "flex", justifyContent: "center" }}>
+                      {isGoal ? (
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                          <circle cx="12" cy="12" r="9.5" stroke="#7E7892" strokeWidth="1.6"/>
+                          <path d="M12 5.5v13M5.5 12h13M8 8l8 8M16 8l-8 8" stroke="#7E7892" strokeWidth="1.3" strokeLinecap="round"/>
+                        </svg>
+                      ) : (
+                        <span style={{
+                          width: 9, height: 13, borderRadius: 2,
+                          background: "#FF4040",
+                          transform: "rotate(-8deg)",
+                          display: "block",
+                          flexShrink: 0,
+                          boxShadow: "0 2px 5px rgba(255,64,64,0.4)",
+                        }} />
+                      )}
+                    </div>
+
+                    {/* Away side — left-aligned */}
+                    <div style={{ textAlign: "left" }}>
+                      {!e.is_home && (
+                        <span style={{ fontSize: 12.5, color: "#9E99B0" }}>
+                          <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: "#5E6B7A" }}>{minuteStr}</span>
+                          {" "}{name}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </>
-        )}
-
-        {/* Red card indicators */}
-        {(homeRed || awayRed) && (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 26px 1fr", alignItems: "center", gap: 12, marginTop: 12 }}>
-            <div>{homeRed && <span style={{ width: 13, height: 17, borderRadius: 2, background: "#FF4040", transform: "rotate(-12deg)", display: "block", boxShadow: "0 2px 6px rgba(255,64,64,0.4)" }} />}</div>
-            <div />
-            <div style={{ display: "flex", justifyContent: "flex-end" }}>{awayRed && <span style={{ width: 13, height: 17, borderRadius: 2, background: "#FF4040", transform: "rotate(-12deg)", display: "block", boxShadow: "0 2px 6px rgba(255,64,64,0.4)" }} />}</div>
-          </div>
         )}
 
         {/* Model probs */}

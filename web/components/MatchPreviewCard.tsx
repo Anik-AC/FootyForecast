@@ -1,24 +1,139 @@
-import type { MatchPreview } from "@/lib/types";
+import type { MatchPreview, MatchPrediction, OutcomeProbabilities, TotalsProbabilities, ExpectedGoals } from "@/lib/types";
+import { teamColor } from "@/lib/teamColors";
 
 const MONO = "'JetBrains Mono',monospace";
 
-interface Props {
-  preview: MatchPreview;
+function generateHeadline(
+  homeName: string,
+  awayName: string,
+  probs: OutcomeProbabilities,
+): string {
+  const { home_win, draw, away_win } = probs;
+  const max = Math.max(home_win, draw, away_win);
+  if (draw >= max - 0.03) return "An even contest on paper";
+  if (home_win >= max) {
+    const margin = home_win - Math.max(away_win, draw);
+    if (margin < 0.10) return `${homeName} hold a slim edge`;
+    if (margin < 0.20) return `${homeName} have the upper hand`;
+    return `${homeName} are clear favourites`;
+  }
+  const margin = away_win - Math.max(home_win, draw);
+  if (margin < 0.10) return `${awayName} hold a slim edge`;
+  if (margin < 0.20) return `${awayName} have the upper hand`;
+  return `${awayName} are clear favourites`;
 }
 
-export default function MatchPreviewCard({ preview }: Props) {
+function buildTags(
+  homeName: string,
+  awayName: string,
+  probs: OutcomeProbabilities,
+  totals: TotalsProbabilities,
+  xg: ExpectedGoals | undefined,
+): string[] {
+  const tags: string[] = [];
+
+  const maxOutcomeProb = Math.max(probs.home_win, probs.away_win);
+  const favName = probs.home_win >= probs.away_win ? homeName : awayName;
+  if (maxOutcomeProb - probs.draw > 0.05) {
+    tags.push(`${favName} ${Math.round(maxOutcomeProb * 100)}% favourites`);
+  } else {
+    tags.push("Too close to call");
+  }
+
+  const goalOptions = [
+    { label: "Over 1.5 goals",  prob: totals.over_1_5 },
+    { label: "Under 1.5 goals", prob: 1 - totals.over_1_5 },
+    { label: "Over 2.5 goals",  prob: totals.over_2_5 },
+    { label: "Under 2.5 goals", prob: 1 - totals.over_2_5 },
+    { label: "Over 3.5 goals",  prob: totals.over_3_5 },
+    { label: "Under 3.5 goals", prob: 1 - totals.over_3_5 },
+  ];
+  const topGoal = goalOptions.reduce((a, b) => (b.prob > a.prob ? b : a));
+  tags.push(`${topGoal.label} · ${(topGoal.prob * 100).toFixed(1)}%`);
+
+  if (xg) {
+    tags.push(`xG ${xg.home_xg.toFixed(2)} – ${xg.away_xg.toFixed(2)}`);
+  }
+
+  return tags;
+}
+
+interface Props {
+  preview: MatchPreview;
+  prediction?: MatchPrediction;
+}
+
+export default function MatchPreviewCard({ preview, prediction }: Props) {
+  const headline = prediction
+    ? generateHeadline(
+        prediction.home_team.name,
+        prediction.away_team.name,
+        prediction.outcome_probabilities,
+      )
+    : null;
+
+  const tags = prediction
+    ? buildTags(
+        prediction.home_team.name,
+        prediction.away_team.name,
+        prediction.outcome_probabilities,
+        prediction.totals,
+        prediction.expected_goals,
+      )
+    : [];
+
+  const bg = prediction
+    ? [
+        `radial-gradient(ellipse at 0% 100%, ${teamColor(prediction.home_team.id)}55 0%, transparent 65%)`,
+        `radial-gradient(ellipse at 100% 100%, ${teamColor(prediction.away_team.id)}55 0%, transparent 65%)`,
+        "#0E0C18",
+      ].join(", ")
+    : "#120F1E";
+
   return (
     <div style={{
-      background: "#120F1E",
-      border: "1px solid rgba(255,255,255,0.07)",
+      background: bg,
+      border: "1px solid rgba(255,255,255,0.09)",
       borderRadius: 16,
-      padding: "20px 24px",
+      padding: "22px 26px",
     }}>
+      <div style={{ fontFamily: MONO, fontSize: 11, fontWeight: 700, letterSpacing: "0.14em", color: "#645F77", marginBottom: 10 }}>
+        MATCH PREVIEW
+      </div>
+
+      {headline && (
+        <div style={{ fontSize: 22, fontWeight: 800, color: "#F2F1F7", letterSpacing: "-0.02em", lineHeight: 1.2, marginBottom: 14 }}>
+          {headline}
+        </div>
+      )}
+
+      {tags.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+          {tags.map((tag, i) => (
+            <span
+              key={i}
+              style={{
+                fontFamily: MONO,
+                fontSize: 11.5,
+                fontWeight: 700,
+                color: i === 0 ? "#2BE38A" : i === 1 ? "#FFC23D" : "#5B8CFF",
+                background: i === 0 ? "rgba(43,227,138,0.1)" : i === 1 ? "rgba(255,194,61,0.1)" : "rgba(91,140,255,0.1)",
+                border: `1px solid ${i === 0 ? "rgba(43,227,138,0.25)" : i === 1 ? "rgba(255,194,61,0.25)" : "rgba(91,140,255,0.25)"}`,
+                padding: "4px 11px",
+                borderRadius: 8,
+              }}
+            >
+              {tag}
+            </span>
+          ))}
+        </div>
+      )}
+
       <p style={{ fontSize: 14.5, lineHeight: 1.7, color: "#C8C3D6", margin: 0 }}>
         {preview.preview_text}
       </p>
-      <p style={{ fontFamily: MONO, fontSize: 12, color: "#4A4560", marginTop: 14 }}>
-        Generated by {preview.model_used}
+      <p style={{ fontFamily: MONO, fontSize: 12, color: "#4A4560", marginTop: 14, marginBottom: 0 }}>
+        Generated by the FootyForecast model.
       </p>
     </div>
   );

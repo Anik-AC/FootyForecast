@@ -257,7 +257,7 @@ export default async function GroupsPage() {
         <p style={{ color: "#645F77", textAlign: "center", padding: "64px 0" }}>Group data not available yet.</p>
       ) : (
         <>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          <div className="ff-grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
             {groups.map((g) => (
               <GroupCard key={g.letter} group={g} advanceProbs={advanceProbs} />
             ))}

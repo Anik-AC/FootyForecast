@@ -73,6 +73,9 @@ export default function HeadToHead({ data, homeTeamName, awayTeamName }: Props) 
       borderRadius: 16,
       padding: "20px 24px",
     }}>
+      <div style={{ fontFamily: MONO, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", color: "#9E99B0", marginBottom: 16 }}>
+        HEAD TO HEAD
+      </div>
       {hasHistory && (
         <div style={{ marginBottom: hasRecent ? 18 : 0 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
