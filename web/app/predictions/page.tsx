@@ -1,4 +1,4 @@
-import { getMatches, getLatestSimulation } from "@/lib/api";
+import { getMatches, getQFSimulation } from "@/lib/api";
 import type { MatchSummary } from "@/lib/types";
 import type { CSSProperties } from "react";
 import { teamColor } from "@/lib/teamColors";
@@ -262,7 +262,7 @@ function Spacer({ w }: { w: number }) {
 // ---- Page ----
 
 export default async function PredictionsBracketPage() {
-  const [allMatches, sim] = await Promise.all([getMatches(), getLatestSimulation()]);
+  const [allMatches, sim] = await Promise.all([getMatches(), getQFSimulation()]);
 
   const names: Record<string, string> = {};
   const champ: Record<string, number> = {};
@@ -338,8 +338,9 @@ export default async function PredictionsBracketPage() {
         </span>
       </h1>
       <p style={{ fontSize: 14, color: "#9E99B0", marginTop: 10, marginBottom: 28 }}>
-        Model-predicted path to the trophy, cascaded from Quarter-Finals through to the Final.
-        Played matches show actual scores; unplayed rounds are projected using model win probabilities and simulation champion odds.
+        Model-predicted path from the Quarter-Finals to the trophy.
+        Win probabilities come from the Bayesian goals model trained on all 96 WC 2026 results.
+        Projected SF and Final matchups are determined by simulating 100,000 QF-onward tournaments with the 8 confirmed teams.
       </p>
 
       {championId && (
@@ -360,7 +361,7 @@ export default async function PredictionsBracketPage() {
               {(names[championId] ?? championId).toUpperCase()}
               {champPct != null && (
                 <span style={{ fontWeight: 400, color: "#9E99B0", fontSize: 12, marginLeft: 8 }}>
-                  {champPct}% to win tournament
+                  {champPct}% to lift the trophy
                 </span>
               )}
             </div>
@@ -443,7 +444,7 @@ export default async function PredictionsBracketPage() {
 
       {sim && (
         <p style={{ fontFamily: MONO, fontSize: 12, color: "#3F3A52", marginTop: 8 }}>
-          Simulation: {sim.n_simulations.toLocaleString()} runs · as of{" "}
+          QF-conditional simulation: {sim.n_simulations.toLocaleString()} runs · as of{" "}
           {new Date(sim.match_results_as_of).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
         </p>
       )}

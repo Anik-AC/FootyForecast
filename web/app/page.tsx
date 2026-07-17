@@ -72,8 +72,13 @@ export default async function HomePage() {
   const upcomingByDate = groupByDate(upcoming);
   const recentReversed = [...recent].reverse();
 
-  // Featured match: first upcoming with a prediction
-  const featured = upcoming.find((m) => m.prediction != null) ?? upcoming[0] ?? null;
+  // Featured match: prefer the Final, then first upcoming with a prediction
+  const featured =
+    upcoming.find((m) => m.stage === "final") ??
+    upcoming.find((m) => m.prediction != null) ??
+    upcoming[0] ??
+    null;
+  const isFinal = featured?.stage === "final";
 
   return (
     <div style={{ animation: "ff-up 0.4s ease both" }}>
@@ -114,33 +119,62 @@ export default async function HomePage() {
       {featured && (() => {
         const homeHex = teamColor(featured.home_team.id);
         const awayHex = teamColor(featured.away_team.id);
-        const homeClr = hexToRgba(homeHex, 0.5);
-        const awayClr = hexToRgba(awayHex, 0.5);
-        const heroGradient = `linear-gradient(105deg, ${homeClr} 0%, rgba(22,17,33,0.88) 35%, rgba(16,12,26,0.94) 62%, ${awayClr} 100%), #0B0A12`;
+        const homeClr = hexToRgba(homeHex, isFinal ? 0.6 : 0.5);
+        const awayClr = hexToRgba(awayHex, isFinal ? 0.6 : 0.5);
+        const heroGradient = isFinal
+          ? `linear-gradient(105deg, ${homeClr} 0%, rgba(22,17,33,0.92) 30%, rgba(16,12,26,0.96) 60%, ${awayClr} 100%), #0B0A12`
+          : `linear-gradient(105deg, ${homeClr} 0%, rgba(22,17,33,0.88) 35%, rgba(16,12,26,0.94) 62%, ${awayClr} 100%), #0B0A12`;
+        const borderStyle = isFinal
+          ? "1px solid rgba(255,194,61,0.45)"
+          : "1px solid rgba(255,255,255,0.1)";
         return (
-        <Link href={`/matches/${featured.id}`} style={{ textDecoration: "none", display: "block", marginTop: 30 }}>
+        <div style={{ marginTop: 30, position: "relative" }}>
+          <Link href={`/matches/${featured.id}`} style={{
+            position: "absolute",
+            inset: 0,
+            zIndex: 0,
+            borderRadius: 24,
+          }} aria-label={`${featured.home_team.name} vs ${featured.away_team.name}`} />
           <div style={{
             borderRadius: 24,
             overflow: "hidden",
-            border: "1px solid rgba(255,255,255,0.1)",
+            border: borderStyle,
             background: heroGradient,
             cursor: "pointer",
+            boxShadow: isFinal ? "0 0 60px rgba(255,194,61,0.12)" : undefined,
+            position: "relative",
           }}>
-            <div style={{ padding: "26px 32px 30px" }}>
+            <div style={{ padding: isFinal ? "32px 36px 34px" : "26px 32px 30px" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
-                <span style={{
-                  fontFamily: "'JetBrains Mono',monospace",
-                  fontSize: 11,
-                  letterSpacing: "0.12em",
-                  color: "#FFC23D",
-                  fontWeight: 700,
-                  background: "rgba(255,194,61,0.12)",
-                  border: "1px solid rgba(255,194,61,0.3)",
-                  padding: "5px 11px",
-                  borderRadius: 8,
-                }}>
-                  ⭐ SPOTLIGHT{featured.group_letter ? ` · Group ${featured.group_letter}` : stageLabel(featured.id)}
-                </span>
+                {isFinal ? (
+                  <span style={{
+                    fontFamily: "'JetBrains Mono',monospace",
+                    fontSize: 11,
+                    letterSpacing: "0.14em",
+                    color: "#FFC23D",
+                    fontWeight: 700,
+                    background: "rgba(255,194,61,0.15)",
+                    border: "1px solid rgba(255,194,61,0.45)",
+                    padding: "6px 14px",
+                    borderRadius: 8,
+                  }}>
+                    🏆 WORLD CUP FINAL · MetLife Stadium, New Jersey
+                  </span>
+                ) : (
+                  <span style={{
+                    fontFamily: "'JetBrains Mono',monospace",
+                    fontSize: 11,
+                    letterSpacing: "0.12em",
+                    color: "#FFC23D",
+                    fontWeight: 700,
+                    background: "rgba(255,194,61,0.12)",
+                    border: "1px solid rgba(255,194,61,0.3)",
+                    padding: "5px 11px",
+                    borderRadius: 8,
+                  }}>
+                    ⭐ SPOTLIGHT{featured.group_letter ? ` · Group ${featured.group_letter}` : stageLabel(featured.id)}
+                  </span>
+                )}
                 <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 13, color: "#9E99B0" }}>
                   <LocalTime iso={featured.kickoff_utc} variant="kickoff" />
                 </span>
@@ -148,10 +182,10 @@ export default async function HomePage() {
               <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", gap: 22 }}>
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 14 }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={flagUrl(featured.home_team.id)} alt={featured.home_team.id} style={{ width: 96, height: 64, borderRadius: 11, objectFit: "cover", border: "1px solid rgba(255,255,255,0.16)", boxShadow: "0 6px 22px rgba(0,0,0,0.4)", display: "block" }} />
-                  <div style={{ fontSize: 30, fontWeight: 800, letterSpacing: "-0.02em" }}>{featured.home_team.name}</div>
+                  <img src={flagUrl(featured.home_team.id)} alt={featured.home_team.id} style={{ width: isFinal ? 112 : 96, height: isFinal ? 75 : 64, borderRadius: 11, objectFit: "cover", border: "1px solid rgba(255,255,255,0.16)", boxShadow: "0 6px 22px rgba(0,0,0,0.4)", display: "block" }} />
+                  <div style={{ fontSize: isFinal ? 34 : 30, fontWeight: 800, letterSpacing: "-0.02em" }}>{featured.home_team.name}</div>
                   {featured.prediction != null && (
-                    <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 30, fontWeight: 700, color: homeHex }}>
+                    <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: isFinal ? 36 : 30, fontWeight: 700, color: homeHex }}>
                       {Math.round(featured.prediction.home_win * 100)}%
                     </div>
                   )}
@@ -175,25 +209,72 @@ export default async function HomePage() {
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 14 }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={flagUrl(featured.away_team.id)} alt={featured.away_team.id} style={{ width: 96, height: 64, borderRadius: 11, objectFit: "cover", border: "1px solid rgba(255,255,255,0.16)", boxShadow: "0 6px 22px rgba(0,0,0,0.4)", display: "block" }} />
-                  <div style={{ fontSize: 30, fontWeight: 800, letterSpacing: "-0.02em", textAlign: "right" }}>{featured.away_team.name}</div>
+                  <img src={flagUrl(featured.away_team.id)} alt={featured.away_team.id} style={{ width: isFinal ? 112 : 96, height: isFinal ? 75 : 64, borderRadius: 11, objectFit: "cover", border: "1px solid rgba(255,255,255,0.16)", boxShadow: "0 6px 22px rgba(0,0,0,0.4)", display: "block" }} />
+                  <div style={{ fontSize: isFinal ? 34 : 30, fontWeight: 800, letterSpacing: "-0.02em", textAlign: "right" }}>{featured.away_team.name}</div>
                   {featured.prediction != null && (
-                    <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 30, fontWeight: 700, color: awayHex }}>
+                    <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: isFinal ? 36 : 30, fontWeight: 700, color: awayHex }}>
                       {Math.round(featured.prediction.away_win * 100)}%
                     </div>
                   )}
                 </div>
               </div>
               {featured.prediction != null && (
-                <div style={{ display: "flex", height: 10, borderRadius: 99, overflow: "hidden", background: "#1D1A2A", marginTop: 26 }}>
-                  <div style={{ width: `${Math.round(featured.prediction.home_win * 100)}%`, background: homeHex }} />
-                  <div style={{ width: `${Math.round(featured.prediction.draw * 100)}%`, background: "#FFC23D" }} />
-                  <div style={{ width: `${Math.round(featured.prediction.away_win * 100)}%`, background: awayHex }} />
-                </div>
+                <>
+                  <div style={{ display: "flex", height: isFinal ? 12 : 10, borderRadius: 99, overflow: "hidden", background: "#1D1A2A", marginTop: 26 }}>
+                    <div style={{ width: `${Math.round(featured.prediction.home_win * 100)}%`, background: homeHex }} />
+                    <div style={{ width: `${Math.round(featured.prediction.draw * 100)}%`, background: "#FFC23D" }} />
+                    <div style={{ width: `${Math.round(featured.prediction.away_win * 100)}%`, background: awayHex }} />
+                  </div>
+                  {isFinal && (
+                    <div style={{
+                      display: "flex",
+                      gap: 10,
+                      marginTop: 18,
+                      flexWrap: "wrap",
+                    }}>
+                      <span style={{
+                        fontFamily: "'JetBrains Mono',monospace",
+                        fontSize: 11,
+                        color: "#7E7892",
+                        background: "rgba(255,255,255,0.05)",
+                        border: "1px solid rgba(255,255,255,0.09)",
+                        padding: "5px 12px",
+                        borderRadius: 7,
+                      }}>
+                        Recency model favours {featured.prediction.home_win > featured.prediction.away_win ? featured.home_team.name : featured.away_team.name}
+                      </span>
+                      <span style={{
+                        fontFamily: "'JetBrains Mono',monospace",
+                        fontSize: 11,
+                        color: "#7E7892",
+                        background: "rgba(255,255,255,0.05)",
+                        border: "1px solid rgba(255,255,255,0.09)",
+                        padding: "5px 12px",
+                        borderRadius: 7,
+                      }}>
+                        ~28% chance of extra time / penalties
+                      </span>
+                      <Link href="/predictions/compare" style={{
+                        fontFamily: "'JetBrains Mono',monospace",
+                        fontSize: 11,
+                        color: "#2BE38A",
+                        background: "rgba(43,227,138,0.08)",
+                        border: "1px solid rgba(43,227,138,0.2)",
+                        padding: "5px 12px",
+                        borderRadius: 7,
+                        textDecoration: "none",
+                        position: "relative",
+                        zIndex: 1,
+                      }}>
+                        Compare all models →
+                      </Link>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
-        </Link>
+        </div>
         );
       })()}
 
@@ -225,7 +306,7 @@ export default async function HomePage() {
             <Link href="/results" style={{ fontSize: 13.5, fontWeight: 600, color: "#2BE38A", textDecoration: "none" }}>All results →</Link>
           } />
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 22 }}>
-            {recentReversed.map((m) => <MatchCard key={m.id} match={m} />)}
+            {recentReversed.map((m) => <MatchCard key={m.id} match={m} compact />)}
           </div>
         </>
       )}

@@ -28,8 +28,14 @@ logger = logging.getLogger(__name__)
 # Only use matches from this date onward for training; older data adds noise.
 TRAIN_MIN_DATE = date(2018, 1, 1)
 
-# Exponential decay half-life in days (2 years per PRD).
-HALF_LIFE_DAYS = 730.0
+# Exponential decay half-life in days.
+# Reduced from 730 (2yr) to 365 (1yr) so recent tournament form dominates.
+HALF_LIFE_DAYS = 365.0
+
+# Extra weight multiplier for matches played inside the WC 2026 tournament
+# itself. The group stage and R32/R16 results are the strongest signal we have
+# for how these squads perform at THIS tournament under these conditions.
+WC2026_BOOST = 3.0
 
 # WC 2026 group stage start — split historical vs live data.
 _WC2026_START = date(2026, 6, 11)
@@ -66,13 +72,15 @@ def _rest_days(match_date: date, last_seen: dict[str, date], team_key: str) -> f
 def prepare_training_data(
     conn: psycopg.Connection,
     min_date: date = TRAIN_MIN_DATE,
+    half_life_days: float | None = None,
+    wc2026_boost: float | None = None,
 ) -> pd.DataFrame:
     """
     Build the training dataset for the Bayesian goals model.
 
-    Runs the full EloRater over all historical matches so ratings converge
-    correctly, but only emits a training row when both teams are WC 2026
-    qualifiers. Adds WC 2026 completed match results at the end.
+    half_life_days overrides HALF_LIFE_DAYS; wc2026_boost overrides WC2026_BOOST.
+    Both default to the module constants when None, so existing callers are
+    unaffected.
 
     Returns a DataFrame with columns:
         match_date, home_id, away_id, home_goals, away_goals,
@@ -81,6 +89,9 @@ def prepare_training_data(
         days_ago, weight
     where weight = time_decay * competitive_weight.
     """
+    hl    = half_life_days if half_life_days is not None else HALF_LIFE_DAYS
+    boost = wc2026_boost   if wc2026_boost   is not None else WC2026_BOOST
+
     today = date.today()
     rater = EloRater()
     records: list[dict] = []
@@ -176,11 +187,14 @@ def prepare_training_data(
             "home_rest_days": home_rest,
             "away_rest_days": away_rest,
             "days_ago":      (today - match_date).days,
-            "comp_weight":   COMPETITIVE_WEIGHTS["wc"],
+            # WC2026 matches get the standard WC competitive weight AND an
+            # extra boost: results from this specific tournament are the most
+            # relevant signal for predicting remaining matches.
+            "comp_weight":   COMPETITIVE_WEIGHTS["wc"] * boost,
         })
 
     df = pd.DataFrame(records)
-    time_decay = np.exp(-np.log(2) * df["days_ago"] / HALF_LIFE_DAYS)
+    time_decay = np.exp(-np.log(2) * df["days_ago"] / hl)
     df["weight"] = time_decay * df["comp_weight"]
 
     logger.info(

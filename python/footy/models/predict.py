@@ -165,6 +165,7 @@ def _write_prediction(
     kickoff_utc: datetime,
     model_as_of: datetime,
     pred: dict,
+    model_version: str = MODEL_VERSION,
     feature_snapshot: dict | None = None,
     is_retroactive: bool = False,
 ) -> int:
@@ -195,7 +196,7 @@ def _write_prediction(
         RETURNING id
         """,
         (
-            fixture_id, MODEL_VERSION, model_as_of, kickoff_utc,
+            fixture_id, model_version, model_as_of, kickoff_utc,
             pred["home_win_prob"], pred["draw_prob"], pred["away_win_prob"],
             pred["home_xg"], pred["away_xg"],
             pred["over_1_5"], pred["over_2_5"], pred["over_3_5"], pred["btts"],
@@ -264,6 +265,7 @@ def predict_all_upcoming(
     trace: xr.DataTree,
     meta: dict,
     model_as_of: datetime,
+    model_version: str = MODEL_VERSION,
 ) -> int:
     """
     Predict all WC 2026 fixtures that have no result yet and write to DB.
@@ -333,13 +335,14 @@ def predict_all_upcoming(
         snapshot = {
             "home_rest_days": home_rest,
             "away_rest_days": away_rest,
-            "model_version":  MODEL_VERSION,
+            "model_version":  model_version,
             "host_adv_factor": host_factor,
         }
 
         with conn.cursor() as cur:
             pred_id = _write_prediction(
                 cur, fixture_id, kickoff_utc, model_as_of, pred,
+                model_version=model_version,
                 feature_snapshot=snapshot,
             )
             _write_scorelines(cur, pred_id, pred["scoreline_probs"])
@@ -361,6 +364,7 @@ def predict_all_retroactive(
     conn: psycopg.Connection,
     trace: xr.DataTree,
     meta: dict,
+    model_version: str = MODEL_VERSION,
 ) -> int:
     """
     Generate predictions for completed WC 2026 fixtures that have no prediction row.
@@ -387,7 +391,7 @@ def predict_all_retroactive(
               AND  f.away_team_id IS NOT NULL
             ORDER  BY f.kickoff_utc ASC
             """,
-            (MODEL_VERSION,),
+            (model_version,),
         )
         fixtures = cur.fetchall()
 
@@ -421,6 +425,7 @@ def predict_all_retroactive(
         with conn.cursor() as cur:
             pred_id = _write_prediction(
                 cur, fixture_id, kickoff_utc, model_as_of, pred,
+                model_version=model_version,
                 is_retroactive=True,
             )
             _write_scorelines(cur, pred_id, pred["scoreline_probs"])
@@ -438,6 +443,8 @@ def predict_all_retroactive(
 
 def main() -> None:
     import argparse
+    from pathlib import Path as _Path
+
     load_dotenv()
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 
@@ -447,13 +454,27 @@ def main() -> None:
         action="store_true",
         help="Also predict completed matches that have no prediction row (point-in-time caveat applies)",
     )
+    parser.add_argument(
+        "--model-version",
+        default=None,
+        help=f"Override model version tag written to DB (default: {MODEL_VERSION})",
+    )
+    parser.add_argument(
+        "--trace-path",
+        default=None,
+        help="Path to the .nc trace file (default: data/traces/goals_model.nc)",
+    )
     args = parser.parse_args()
 
     from footy.db import get_conn
-    from footy.models.goals import load
+    from footy.models.goals import load, _TRACE_PATH
     from footy.models.scorer import compute_all_scorer_predictions
 
-    trace, meta = load()
+    trace_path = _Path(args.trace_path) if args.trace_path else _TRACE_PATH
+    mv         = args.model_version or MODEL_VERSION
+
+    trace, meta = load(path=trace_path)
+    print(f"Loaded trace from {trace_path}  (model_version={mv})")
 
     # model_as_of: use now so the DB constraint (model_as_of < kickoff_utc) passes
     # for all future fixtures.
@@ -461,12 +482,13 @@ def main() -> None:
 
     with get_conn() as conn:
         if args.retroactive:
-            r = predict_all_retroactive(conn, trace, meta)
+            r = predict_all_retroactive(conn, trace, meta, model_version=mv)
             print(f"Retroactively predicted {r} completed fixtures.")
-        n = predict_all_upcoming(conn, trace, meta, model_as_of)
+        n = predict_all_upcoming(conn, trace, meta, model_as_of, model_version=mv)
         print(f"Wrote predictions for {n} upcoming WC 2026 fixtures.")
-        s = compute_all_scorer_predictions(conn)
-        print(f"Wrote scorer predictions for {s} upcoming WC 2026 fixtures.")
+        if mv == MODEL_VERSION:
+            s = compute_all_scorer_predictions(conn)
+            print(f"Wrote scorer predictions for {s} upcoming WC 2026 fixtures.")
 
 
 if __name__ == "__main__":

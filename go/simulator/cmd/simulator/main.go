@@ -4,7 +4,7 @@
 //
 // Usage:
 //
-//	simulator [--n N] [--version MODEL_VERSION] [--dry-run]
+//	simulator [--n N] [--version MODEL_VERSION] [--from-qf] [--dry-run]
 //
 // Environment:
 //
@@ -25,7 +25,8 @@ import (
 
 func main() {
 	n := flag.Int("n", 100_000, "number of tournament simulations")
-	version := flag.String("version", "bayesian_goals_v1", "model version to load")
+	version := flag.String("version", "bayesian_goals_v3", "model version to load")
+	fromQF := flag.Bool("from-qf", false, "simulate only QF→SF→Final using actual confirmed QF fixtures")
 	dryRun := flag.Bool("dry-run", false, "simulate but do not write results to DB")
 	flag.Parse()
 
@@ -48,7 +49,40 @@ func main() {
 	}
 	log.Printf("loaded params for %d teams (model: %s)", len(params), *version)
 
-	// Load current tournament state.
+	if *fromQF {
+		// QF-conditional mode: simulate only from QF using actual bracket.
+		qfPairs, err := db.LoadQFFixtures(ctx, conn)
+		if err != nil {
+			log.Fatalf("load QF fixtures: %v", err)
+		}
+		log.Printf("QF bracket: %v vs %v | %v vs %v | %v vs %v | %v vs %v",
+			qfPairs[0], qfPairs[1], qfPairs[2], qfPairs[3],
+			qfPairs[4], qfPairs[5], qfPairs[6], qfPairs[7])
+
+		log.Printf("starting %d QF-conditional simulations...", *n)
+		start := time.Now()
+		probs := montecarlo.RunFromQF(qfPairs, params, *n)
+		elapsed := time.Since(start)
+		log.Printf("completed %d simulations in %v (%.0f sims/sec)",
+			*n, elapsed.Round(time.Millisecond), float64(*n)/elapsed.Seconds())
+
+		printTopN(probs, tournament.StageChampion, 8)
+
+		if *dryRun {
+			log.Printf("dry-run mode: results not written to DB")
+			return
+		}
+
+		qfVersion := *version + "_qf"
+		runAt := time.Now().UTC()
+		if err := db.WriteResults(ctx, conn, qfVersion, *n, probs, runAt); err != nil {
+			log.Fatalf("write QF results: %v", err)
+		}
+		log.Printf("wrote QF simulation results (version=%s, run_at=%s)", qfVersion, runAt.Format(time.RFC3339))
+		return
+	}
+
+	// Full tournament mode: simulate from group stage.
 	groups, matchScores, err := db.LoadGroups(ctx, conn)
 	if err != nil {
 		log.Fatalf("load groups: %v", err)
@@ -61,7 +95,6 @@ func main() {
 		GroupMatchScores: matchScores,
 	}
 
-	// Run simulations.
 	log.Printf("starting %d simulations...", *n)
 	start := time.Now()
 	probs := montecarlo.Run(state, *n, montecarlo.GroupsToAdvancers)
@@ -69,7 +102,6 @@ func main() {
 	log.Printf("completed %d simulations in %v (%.0f sims/sec)",
 		*n, elapsed.Round(time.Millisecond), float64(*n)/elapsed.Seconds())
 
-	// Print top 10 champion probabilities.
 	printTopN(probs, tournament.StageChampion, 10)
 
 	if *dryRun {
@@ -77,7 +109,6 @@ func main() {
 		return
 	}
 
-	// Persist results.
 	runAt := time.Now().UTC()
 	if err := db.WriteResults(ctx, conn, *version, *n, probs, runAt); err != nil {
 		log.Fatalf("write results: %v", err)

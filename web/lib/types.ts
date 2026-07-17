@@ -172,6 +172,47 @@ export interface GradedMatch {
   market_brier_score?: Record<string, number>;
 }
 
+export interface ModelComparisonRow {
+  model_version: string;
+  graded_count: number;
+  accuracy: number;
+  mean_log_loss: number;
+  mean_brier_score: number;
+  market_mean_log_loss: number | null;
+  market_mean_brier_score: number | null;
+}
+
+export interface ModelPick {
+  model_version: string;
+  home_win_prob: number;
+  draw_prob: number;
+  away_win_prob: number;
+  pick: string; // "home" | "draw" | "away"
+  home_xg?: number;
+  away_xg?: number;
+}
+
+export interface FixtureComparison {
+  match_id: string;
+  kickoff_utc: string;
+  stage: string;
+  home_team: Team;
+  away_team: Team;
+  result?: MatchResultSummary;
+  models: ModelPick[];
+}
+
+export interface ChampionTeamProb {
+  team_id: string;
+  team_name: string;
+  probability: number;
+}
+
+export interface PredictionComparison {
+  matches: FixtureComparison[];
+  champion_probs: Record<string, ChampionTeamProb[]>;
+}
+
 export interface CalibrationSummary {
   total_matches: number;
   out_of_sample_matches: number;

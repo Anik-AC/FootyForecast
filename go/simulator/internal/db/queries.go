@@ -177,6 +177,44 @@ func LoadGroups(ctx context.Context, conn *pgx.Conn) (
 	return groups, matchScores, nil
 }
 
+// LoadQFFixtures returns the 8 team IDs of the 4 QF matches in bracket order:
+// [QF0home, QF0away, QF1home, QF1away, QF2home, QF2away, QF3home, QF3away].
+// Matches are sorted by kickoff_utc so the bracket order is consistent.
+func LoadQFFixtures(ctx context.Context, conn *pgx.Conn) ([8]string, error) {
+	rows, err := conn.Query(ctx, `
+		SELECT home_team_id, away_team_id
+		FROM fixtures
+		WHERE tournament_id = 'WC2026' AND stage = 'quarter_final'
+		ORDER BY kickoff_utc ASC
+	`)
+	if err != nil {
+		return [8]string{}, fmt.Errorf("query QF fixtures: %w", err)
+	}
+	defer rows.Close()
+
+	var qfPairs [8]string
+	idx := 0
+	for rows.Next() {
+		var home, away string
+		if err := rows.Scan(&home, &away); err != nil {
+			return [8]string{}, fmt.Errorf("scan QF fixture: %w", err)
+		}
+		if idx+2 > 8 {
+			return [8]string{}, fmt.Errorf("too many QF fixtures in DB")
+		}
+		qfPairs[idx] = home
+		qfPairs[idx+1] = away
+		idx += 2
+	}
+	if err := rows.Err(); err != nil {
+		return [8]string{}, fmt.Errorf("iterate QF fixtures: %w", err)
+	}
+	if idx != 8 {
+		return [8]string{}, fmt.Errorf("expected 4 QF fixtures, got %d", idx/2)
+	}
+	return qfPairs, nil
+}
+
 func nextLetter(s string) string {
 	return string(rune(s[0] + 1))
 }

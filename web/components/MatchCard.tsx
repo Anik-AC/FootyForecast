@@ -118,7 +118,7 @@ function UpcomingCard({ match }: { match: MatchSummary }) {
 }
 
 // Result card
-function ResultCard({ match }: { match: MatchSummary }) {
+function ResultCard({ match, compact = false }: { match: MatchSummary; compact?: boolean }) {
   const result = match.result!;
   const p = match.prediction;
   const h = p ? Math.round(p.home_win * 100) : null;
@@ -148,7 +148,7 @@ function ResultCard({ match }: { match: MatchSummary }) {
     .sort((a, b) => a.minute - b.minute);
 
   return (
-    <Link href={`/matches/${match.id}`} style={{ textDecoration: "none", display: "block" }}>
+    <Link href={`/results/${match.id}`} style={{ textDecoration: "none", display: "block" }}>
       <div style={{
         background: heroGrad(match.home_team.id, match.away_team.id),
         border: "1px solid rgba(255,255,255,0.09)",
@@ -212,13 +212,13 @@ function ResultCard({ match }: { match: MatchSummary }) {
         </div>
 
         {/* Events: goals + red cards, one row each, sorted by minute */}
-        {allEvents.length > 0 && (
+        {!compact && allEvents.length > 0 && (
           <>
             <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "18px 0 14px" }} />
             <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
               {allEvents.map((e, i) => {
                 const minuteStr = `${e.minute}'`;
-                const name = e.player_name
+                const name = !compact && e.player_name
                   ? `${e.player_name}${e.incident_type === "own_goal" ? " (OG)" : ""}`
                   : "";
                 const isGoal = e.incident_type === "goal" || e.incident_type === "own_goal";
@@ -229,7 +229,7 @@ function ResultCard({ match }: { match: MatchSummary }) {
                     <div style={{ textAlign: "right" }}>
                       {e.is_home && (
                         <span style={{ fontSize: 12.5, color: "#9E99B0" }}>
-                          {name}{" "}
+                          {name}{name ? " " : ""}
                           <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: "#5E6B7A" }}>{minuteStr}</span>
                         </span>
                       )}
@@ -259,7 +259,7 @@ function ResultCard({ match }: { match: MatchSummary }) {
                       {!e.is_home && (
                         <span style={{ fontSize: 12.5, color: "#9E99B0" }}>
                           <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: "#5E6B7A" }}>{minuteStr}</span>
-                          {" "}{name}
+                          {name ? " " : ""}{name}
                         </span>
                       )}
                     </div>
@@ -305,6 +305,6 @@ function ResultCard({ match }: { match: MatchSummary }) {
   );
 }
 
-export function MatchCard({ match }: { match: MatchSummary }) {
-  return match.result !== null ? <ResultCard match={match} /> : <UpcomingCard match={match} />;
+export function MatchCard({ match, compact = false }: { match: MatchSummary; compact?: boolean }) {
+  return match.result !== null ? <ResultCard match={match} compact={compact} /> : <UpcomingCard match={match} />;
 }

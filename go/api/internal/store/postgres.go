@@ -318,9 +318,11 @@ func (s *PostgresStore) GetMatchPrediction(ctx context.Context, matchID string) 
 // with per-team deltas computed against the previous run.
 // Returns ErrNotFound if no simulation has been run yet.
 func (s *PostgresStore) GetLatestSimulation(ctx context.Context) (*models.TournamentSimulation, error) {
-	// Step 1: find the two most recent distinct run_at timestamps.
+	// Step 1: find the two most recent distinct run_at timestamps (exclude QF-only runs).
 	tsRows, err := s.pool.Query(ctx, `
-		SELECT DISTINCT run_at FROM simulation_results ORDER BY run_at DESC LIMIT 2
+		SELECT DISTINCT run_at FROM simulation_results
+		WHERE model_version NOT LIKE '%_qf'
+		ORDER BY run_at DESC LIMIT 2
 	`)
 	if err != nil {
 		return nil, fmt.Errorf("query simulation timestamps: %w", err)
@@ -472,6 +474,123 @@ func (s *PostgresStore) GetLatestSimulation(ctx context.Context) (*models.Tourna
 		MatchResultsAsOf: matchResultsAsOf,
 		Teams:            teams,
 	}, nil
+}
+
+// GetQFSimulation returns the latest QF-conditional Monte Carlo simulation
+// (model version ending in _qf), containing only the 8 QF teams.
+// Returns ErrNotFound if no QF simulation has been run yet.
+func (s *PostgresStore) GetQFSimulation(ctx context.Context) (*models.TournamentSimulation, error) {
+	var latestRunAt time.Time
+	err := s.pool.QueryRow(ctx, `
+		SELECT DISTINCT run_at FROM simulation_results
+		WHERE model_version LIKE '%_qf'
+		ORDER BY run_at DESC LIMIT 1
+	`).Scan(&latestRunAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("query QF simulation timestamp: %w", err)
+	}
+
+	var nSims int
+	err = s.pool.QueryRow(ctx, `
+		SELECT n_simulations FROM simulation_results WHERE run_at = $1 LIMIT 1
+	`, latestRunAt).Scan(&nSims)
+	if err != nil {
+		return nil, fmt.Errorf("query n_simulations: %w", err)
+	}
+
+	// Load probabilities for the QF run.
+	r, err := s.pool.Query(ctx, `
+		SELECT team_id, stage, probability FROM simulation_results WHERE run_at = $1
+	`, latestRunAt)
+	if err != nil {
+		return nil, fmt.Errorf("query QF sim probs: %w", err)
+	}
+	defer r.Close()
+	probs := make(map[string]map[string]float64)
+	for r.Next() {
+		var teamID, stage string
+		var prob float64
+		if err := r.Scan(&teamID, &stage, &prob); err != nil {
+			return nil, fmt.Errorf("scan QF sim prob: %w", err)
+		}
+		if probs[teamID] == nil {
+			probs[teamID] = make(map[string]float64)
+		}
+		probs[teamID][stage] = prob
+	}
+	if err := r.Err(); err != nil {
+		return nil, err
+	}
+
+	// Build team results for only the teams in the QF simulation.
+	teamRows, err := s.pool.Query(ctx, `
+		SELECT t.id, t.name FROM teams t
+		WHERE t.id = ANY($1)
+		ORDER BY t.name
+	`, teamIDsFromMap(probs))
+	if err != nil {
+		return nil, fmt.Errorf("query QF teams: %w", err)
+	}
+	defer teamRows.Close()
+
+	var teams []models.TeamSimulationResult
+	for teamRows.Next() {
+		var id, name string
+		if err := teamRows.Scan(&id, &name); err != nil {
+			return nil, fmt.Errorf("scan QF team: %w", err)
+		}
+		p := probs[id]
+		sp := models.StageProbabilities{
+			RoundOf32:    p["R32"],
+			RoundOf16:    p["R16"],
+			QuarterFinal: p["QF"],
+			SemiFinal:    p["SF"],
+			Final:        p["FINAL"],
+			Champion:     p["CHAMPION"],
+		}
+		teams = append(teams, models.TeamSimulationResult{
+			TeamID:             id,
+			TeamName:           name,
+			StageProbabilities: sp,
+		})
+	}
+	if err := teamRows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate QF team rows: %w", err)
+	}
+
+	var matchResultsAsOf time.Time
+	err = s.pool.QueryRow(ctx, `
+		SELECT COALESCE(
+			(SELECT MAX(mr.confirmed_at)
+			 FROM match_results mr
+			 JOIN fixtures f ON f.id = mr.fixture_id
+			 WHERE f.tournament_id = 'WC2026'),
+			$1
+		)
+	`, latestRunAt).Scan(&matchResultsAsOf)
+	if err != nil {
+		matchResultsAsOf = latestRunAt
+	}
+
+	return &models.TournamentSimulation{
+		SimulationID:     latestRunAt.UTC().Format(time.RFC3339),
+		RunAt:            latestRunAt,
+		NSimulations:     nSims,
+		MatchResultsAsOf: matchResultsAsOf,
+		Teams:            teams,
+	}, nil
+}
+
+// teamIDsFromMap returns a slice of team IDs from a probability map (for pgx array binding).
+func teamIDsFromMap(m map[string]map[string]float64) []string {
+	ids := make([]string, 0, len(m))
+	for id := range m {
+		ids = append(ids, id)
+	}
+	return ids
 }
 
 // GetMarketComparison returns the model-vs-market comparison for one fixture.
@@ -632,6 +751,7 @@ func (s *PostgresStore) GetCalibration(ctx context.Context) (*models.Calibration
 			ON mp.fixture_id    = mg.fixture_id
 			AND mp.model_version = mg.model_version
 		WHERE f.tournament_id = 'WC2026'
+		  AND mg.model_version = 'bayesian_goals_v3'
 		ORDER BY f.kickoff_utc ASC
 	`)
 	if err != nil {
@@ -760,6 +880,248 @@ func fabs(f float64) float64 {
 		return -f
 	}
 	return f
+}
+
+// GetModelComparison returns aggregate grading stats per model version across
+// all graded WC 2026 matches, ordered by mean log-loss ascending (best first).
+func (s *PostgresStore) GetModelComparison(ctx context.Context) ([]models.ModelComparisonRow, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT
+			mg.model_version,
+			COUNT(*)::int AS graded_count,
+			SUM(CASE
+				WHEN mg.actual_outcome = 'home_win'
+				     AND mp.home_win_prob >= mp.draw_prob
+				     AND mp.home_win_prob >= mp.away_win_prob THEN 1
+				WHEN mg.actual_outcome = 'draw'
+				     AND mp.draw_prob >= mp.home_win_prob
+				     AND mp.draw_prob >= mp.away_win_prob THEN 1
+				WHEN mg.actual_outcome = 'away_win'
+				     AND mp.away_win_prob >= mp.home_win_prob
+				     AND mp.away_win_prob >= mp.draw_prob THEN 1
+				ELSE 0
+			END)::float / COUNT(*) AS accuracy,
+			AVG(mg.model_log_loss)    AS mean_log_loss,
+			AVG(mg.model_brier_score) AS mean_brier_score,
+			AVG((SELECT AVG(v::float) FROM jsonb_each_text(mg.market_log_loss) e(k, v)))    AS market_mean_log_loss,
+			AVG((SELECT AVG(v::float) FROM jsonb_each_text(mg.market_brier_score) e(k, v))) AS market_mean_brier_score
+		FROM match_grading mg
+		JOIN match_predictions mp
+			ON  mp.fixture_id     = mg.fixture_id
+			AND mp.model_version  = mg.model_version
+		WHERE mg.fixture_id IN (
+			SELECT id FROM fixtures WHERE tournament_id = 'WC2026'
+		)
+		GROUP BY mg.model_version
+		ORDER BY mean_log_loss ASC
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("query model comparison: %w", err)
+	}
+	defer rows.Close()
+
+	var result []models.ModelComparisonRow
+	for rows.Next() {
+		var (
+			version  string
+			count    int
+			accuracy float64
+			meanLL   float64
+			meanBS   float64
+			mktLL    *float64
+			mktBS    *float64
+		)
+		if err := rows.Scan(&version, &count, &accuracy, &meanLL, &meanBS, &mktLL, &mktBS); err != nil {
+			return nil, fmt.Errorf("scan model comparison: %w", err)
+		}
+		result = append(result, models.ModelComparisonRow{
+			ModelVersion:         version,
+			GradedCount:          count,
+			Accuracy:             accuracy,
+			MeanLogLoss:          meanLL,
+			MeanBrierScore:       meanBS,
+			MarketMeanLogLoss:    mktLL,
+			MarketMeanBrierScore: mktBS,
+		})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate model comparison: %w", err)
+	}
+	return result, nil
+}
+
+// GetPredictionComparison returns knockout-stage fixtures with side-by-side predictions
+// from each of the three model versions, plus champion probabilities from simulations.
+func (s *PostgresStore) GetPredictionComparison(ctx context.Context) (*models.PredictionComparison, error) {
+	// Part 1: latest prediction per (fixture, model_version) for knockout stages.
+	predRows, err := s.pool.Query(ctx, `
+		SELECT DISTINCT ON (f.id, mp.model_version)
+			f.id, f.kickoff_utc, f.stage,
+			ht.id,  ht.name,  ht.confederation,
+			awt.id, awt.name, awt.confederation,
+			mr.home_goals, mr.away_goals, COALESCE(mr.went_to_pens, false), mr.pen_winner_id,
+			mp.model_version, mp.home_win_prob, mp.draw_prob, mp.away_win_prob,
+			mp.home_xg, mp.away_xg
+		FROM fixtures f
+		JOIN teams ht  ON ht.id  = f.home_team_id
+		JOIN teams awt ON awt.id = f.away_team_id
+		LEFT JOIN match_results mr ON mr.fixture_id = f.id
+		JOIN match_predictions mp ON mp.fixture_id = f.id
+		WHERE f.tournament_id = 'WC2026'
+		  AND f.stage IN ('quarter_final', 'semi_final', 'final')
+		  AND mp.model_version IN ('bayesian_goals_v3', 'bayesian_goals_historical', 'elo_v1')
+		ORDER BY f.id, mp.model_version, mp.computed_at DESC
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("query prediction comparison fixtures: %w", err)
+	}
+	defer predRows.Close()
+
+	// Build fixture map preserving insertion order (rows come grouped by fixture).
+	type fixtureKey struct {
+		id         string
+		kickoffUTC time.Time
+		stage      string
+		homeID     string
+		homeName   string
+		homeConf   string
+		awayID     string
+		awayName   string
+		awayConf   string
+	}
+	fixtureOrder := []fixtureKey{}
+	fixtureMap   := map[string]*models.FixtureComparison{}
+	resultMap    := map[string]*models.MatchResultSummary{}
+
+	for predRows.Next() {
+		var (
+			fixtureID, stage                 string
+			kickoffUTC                        time.Time
+			homeID, homeName, homeConf        string
+			awayID, awayName, awayConf        string
+			homeGoals, awayGoals              *int
+			wentToPens                        bool
+			penWinnerID                       *string
+			modelVersion                      string
+			homeWinProb, drawProb, awayWinProb float64
+			homeXG, awayXG                    *float64
+		)
+		if err := predRows.Scan(
+			&fixtureID, &kickoffUTC, &stage,
+			&homeID, &homeName, &homeConf,
+			&awayID, &awayName, &awayConf,
+			&homeGoals, &awayGoals, &wentToPens, &penWinnerID,
+			&modelVersion, &homeWinProb, &drawProb, &awayWinProb,
+			&homeXG, &awayXG,
+		); err != nil {
+			return nil, fmt.Errorf("scan prediction comparison row: %w", err)
+		}
+
+		if _, seen := fixtureMap[fixtureID]; !seen {
+			fc := &models.FixtureComparison{
+				MatchID:    fixtureID,
+				KickoffUTC: kickoffUTC,
+				Stage:      stage,
+				HomeTeam:   models.Team{ID: homeID, Name: homeName, Confederation: homeConf},
+				AwayTeam:   models.Team{ID: awayID, Name: awayName, Confederation: awayConf},
+				Models:     []models.ModelPick{},
+			}
+			if homeGoals != nil && awayGoals != nil {
+				r := &models.MatchResultSummary{
+					HomeGoals:  *homeGoals,
+					AwayGoals:  *awayGoals,
+					WentToPens: wentToPens,
+					PenWinnerID: penWinnerID,
+				}
+				fc.Result = r
+				resultMap[fixtureID] = r
+			}
+			fixtureMap[fixtureID] = fc
+			fixtureOrder = append(fixtureOrder, fixtureKey{
+				id:         fixtureID,
+				kickoffUTC: kickoffUTC,
+				stage:      stage,
+				homeID:     homeID,
+				homeName:   homeName,
+				homeConf:   homeConf,
+				awayID:     awayID,
+				awayName:   awayName,
+				awayConf:   awayConf,
+			})
+		}
+
+		pick := "home"
+		if drawProb >= homeWinProb && drawProb >= awayWinProb {
+			pick = "draw"
+		} else if awayWinProb > homeWinProb {
+			pick = "away"
+		}
+
+		fixtureMap[fixtureID].Models = append(fixtureMap[fixtureID].Models, models.ModelPick{
+			ModelVersion: modelVersion,
+			HomeWinProb:  homeWinProb,
+			DrawProb:     drawProb,
+			AwayWinProb:  awayWinProb,
+			Pick:         pick,
+			HomeXG:       homeXG,
+			AwayXG:       awayXG,
+		})
+	}
+	if err := predRows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate prediction comparison rows: %w", err)
+	}
+
+	// Assemble ordered slice sorted by kickoff.
+	sort.Slice(fixtureOrder, func(i, j int) bool {
+		return fixtureOrder[i].kickoffUTC.Before(fixtureOrder[j].kickoffUTC)
+	})
+	matches := make([]models.FixtureComparison, 0, len(fixtureOrder))
+	for _, fk := range fixtureOrder {
+		matches = append(matches, *fixtureMap[fk.id])
+	}
+
+	// Part 2: champion probabilities from QF-conditional simulations.
+	simRows, err := s.pool.Query(ctx, `
+		WITH latest_runs AS (
+			SELECT model_version, MAX(run_at) AS max_run
+			FROM simulation_results
+			WHERE stage = 'CHAMPION'
+			  AND model_version IN ('bayesian_goals_v3_qf', 'bayesian_goals_historical_qf')
+			GROUP BY model_version
+		)
+		SELECT sr.model_version, sr.team_id, t.name, sr.probability
+		FROM simulation_results sr
+		JOIN teams t ON t.id = sr.team_id
+		JOIN latest_runs lr ON lr.model_version = sr.model_version AND lr.max_run = sr.run_at
+		WHERE sr.stage = 'CHAMPION'
+		ORDER BY sr.model_version, sr.probability DESC
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("query champion probs: %w", err)
+	}
+	defer simRows.Close()
+
+	champProbs := map[string][]models.ChampionTeamProb{}
+	for simRows.Next() {
+		var modelVersion, teamID, teamName string
+		var prob float64
+		if err := simRows.Scan(&modelVersion, &teamID, &teamName, &prob); err != nil {
+			return nil, fmt.Errorf("scan champion prob row: %w", err)
+		}
+		champProbs[modelVersion] = append(champProbs[modelVersion], models.ChampionTeamProb{
+			TeamID:      teamID,
+			TeamName:    teamName,
+			Probability: prob,
+		})
+	}
+	if err := simRows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate champion prob rows: %w", err)
+	}
+
+	return &models.PredictionComparison{
+		Matches:       matches,
+		ChampionProbs: champProbs,
+	}, nil
 }
 
 // GetMatchTrivia returns the pre-generated trivia facts for a fixture.

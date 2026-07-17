@@ -4,6 +4,7 @@ import type {
   TournamentSimulation,
   MarketComparison,
   CalibrationSummary,
+  ModelComparisonRow,
   MatchTrivia,
   MatchPreview,
   MatchScorerPredictions,
@@ -25,15 +26,15 @@ import type {
   HydrationAnalysis,
   H2HRecord,
   TournamentTrivia,
+  PredictionComparison,
 } from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
 
-async function apiFetch<T>(path: string): Promise<T | null> {
+async function apiFetch<T>(path: string, init?: RequestInit): Promise<T | null> {
+  const defaults = init?.cache ? {} : { next: { revalidate: 60 } };
   try {
-    const res = await fetch(`${API_URL}${path}`, {
-      next: { revalidate: 60 }, // ISR: revalidate every 60 seconds
-    });
+    const res = await fetch(`${API_URL}${path}`, { ...defaults, ...init });
     if (!res.ok) return null;
     return res.json() as Promise<T>;
   } catch {
@@ -53,12 +54,24 @@ export async function getLatestSimulation(): Promise<TournamentSimulation | null
   return apiFetch<TournamentSimulation>("/v1/simulation/latest");
 }
 
+export async function getQFSimulation(): Promise<TournamentSimulation | null> {
+  return apiFetch<TournamentSimulation>("/v1/simulation/qf");
+}
+
 export async function getMarketComparison(id: string): Promise<MarketComparison | null> {
   return apiFetch<MarketComparison>(`/v1/matches/${encodeURIComponent(id)}/market-comparison`);
 }
 
 export async function getCalibration(): Promise<CalibrationSummary | null> {
   return apiFetch<CalibrationSummary>("/v1/calibration");
+}
+
+export async function getModelComparison(): Promise<ModelComparisonRow[]> {
+  return (await apiFetch<ModelComparisonRow[]>("/v1/stats/models")) ?? [];
+}
+
+export async function getPredictionComparison(): Promise<PredictionComparison | null> {
+  return apiFetch<PredictionComparison>("/v1/predictions/compare");
 }
 
 export async function getMatchTrivia(id: string): Promise<MatchTrivia | null> {
@@ -130,11 +143,11 @@ export async function getHydrationAnalysis(): Promise<HydrationAnalysis | null> 
 }
 
 export async function getTeamForm(teamID: string): Promise<MatchSummary[]> {
-  return (await apiFetch<MatchSummary[]>(`/v1/teams/${encodeURIComponent(teamID)}/form`)) ?? [];
+  return (await apiFetch<MatchSummary[]>(`/v1/teams/${encodeURIComponent(teamID)}/form`, { cache: "no-store" })) ?? [];
 }
 
 export async function getMatchH2H(id: string): Promise<H2HRecord | null> {
-  return apiFetch<H2HRecord>(`/v1/matches/${encodeURIComponent(id)}/h2h`);
+  return apiFetch<H2HRecord>(`/v1/matches/${encodeURIComponent(id)}/h2h`, { cache: "no-store" });
 }
 
 export async function getTopAssists(limit = 10): Promise<TopScorer[]> {

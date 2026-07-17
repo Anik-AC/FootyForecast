@@ -97,6 +97,79 @@ func Run(
 	return probs
 }
 
+// RunFromQF executes n simulations starting from the Quarter-Final stage.
+// qfPairs is [QF0home, QF0away, QF1home, QF1away, QF2home, QF2away, QF3home, QF3away].
+// Returns QF-conditional probabilities for the 8 teams: each team's probability
+// of reaching SF, FINAL, and winning the CHAMPION stage given they are in QF.
+// The QF probability is 1.0 for all 8 teams by definition.
+func RunFromQF(
+	qfPairs [8]string,
+	params map[string]tournament.TeamParams,
+	n int,
+) map[string]map[string]float64 {
+	workers := runtime.NumCPU()
+	if workers > n {
+		workers = n
+	}
+
+	results := make(chan map[string]string, n)
+	var wg sync.WaitGroup
+	perWorker := n / workers
+
+	for w := 0; w < workers; w++ {
+		wg.Add(1)
+		count := perWorker
+		if w == workers-1 {
+			count = n - (workers-1)*perWorker
+		}
+		rng := rand.New(rand.NewSource(int64(w * 0xDEADBEEF))) //nolint:gosec
+		go func(rng *rand.Rand, count int) {
+			defer wg.Done()
+			for range count {
+				reached := tournament.SimulateFromQF(qfPairs, params, rng)
+				results <- reached
+			}
+		}(rng, count)
+	}
+
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	counts := make(StageCount)
+	for reached := range results {
+		for team, stage := range reached {
+			if counts[team] == nil {
+				counts[team] = make(map[string]int)
+			}
+			counts[team][stage]++
+		}
+	}
+
+	// Only QF, SF, FINAL, CHAMPION stages are meaningful here.
+	// R32 and R16 are set equal to QF (1.0) for all teams since all 8 started in QF.
+	qfStages := []string{
+		tournament.StageQF,
+		tournament.StageSF,
+		tournament.StageFinal,
+		tournament.StageChampion,
+	}
+	probs := make(map[string]map[string]float64, len(counts))
+	for team, stageCounts := range counts {
+		probs[team] = make(map[string]float64)
+		cumulCount := 0
+		for si := len(qfStages) - 1; si >= 0; si-- {
+			cumulCount += stageCounts[qfStages[si]]
+			probs[team][qfStages[si]] = float64(cumulCount) / float64(n)
+		}
+		// R32 and R16 are not simulated; set to QF (= 1.0) for DB write compatibility.
+		probs[team][tournament.StageR32] = probs[team][tournament.StageQF]
+		probs[team][tournament.StageR16] = probs[team][tournament.StageQF]
+	}
+	return probs
+}
+
 // GroupsToAdvancers converts group winners/runners-up and group results into
 // the 32-team bracket in WC 2026 slot order.
 //

@@ -77,7 +77,10 @@ func main() {
 		r.Get("/stats/trivia", handlers.GetTournamentTrivia(s))
 		r.Get("/stats/hydration-breaks", handlers.GetHydrationAnalysis(s))
 		r.Get("/simulation/latest", handlers.GetLatestSimulation(s))
+		r.Get("/simulation/qf", handlers.GetQFSimulation(s))
 		r.Get("/calibration", handlers.GetCalibration(s))
+		r.Get("/stats/models", handlers.GetModelComparison(s))
+		r.Get("/predictions/compare", handlers.GetPredictionComparison(s))
 		r.Get("/leaderboard", handlers.GetLeaderboard(s))
 	})
 

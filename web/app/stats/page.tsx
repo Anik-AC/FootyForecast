@@ -315,7 +315,7 @@ function PredictionRecord({ graded }: { graded: GradedMatch[] }) {
             </tr>
           </thead>
           <tbody>
-            {sorted.map((m) => {
+            {sorted.map((m, i) => {
               const ok = isCorrect(m);
               const pred = predictedLabel(m);
               const actualProb = actualOutcomeProb(m);
@@ -323,7 +323,7 @@ function PredictionRecord({ graded }: { graded: GradedMatch[] }) {
               const dateStr = new Date(m.kickoff_utc).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
               return (
                 <tr
-                  key={m.match_id}
+                  key={`${m.match_id}-${i}`}
                   style={{ borderBottom: "1px solid rgba(255,255,255,0.03)", transition: "background .1s" }}
                   className="ff-table-row"
                 >
@@ -489,7 +489,15 @@ export default async function StatsPage() {
       </div>
 
       {/* MODEL PERFORMANCE */}
-      <SectionHeader color="#A35CFF" label="MODEL PERFORMANCE" />
+      <SectionHeader
+        color="#A35CFF"
+        label="MODEL PERFORMANCE"
+        right={
+          <Link href="/stats/models" style={{ fontSize: 13.5, fontWeight: 600, color: "#A35CFF", textDecoration: "none" }}>
+            Compare all models →
+          </Link>
+        }
+      />
       {!calibration || graded.length === 0 ? (
         <p style={{ color: "#645F77", fontSize: 14 }}>No graded matches yet. Run predictions to populate this section.</p>
       ) : (

@@ -1,2 +1,4 @@
-2026/06/30 09:35:16 "GET http://localhost:8080/health HTTP/1.1" from [::1]:59369 - 200 15B in 0s
-2026/06/30 09:35:23 "GET http://localhost:8080/v1/matches?limit=300 HTTP/1.1" from [::1]:59370 - 200 37321B in 873.9998ms
+2026/07/09 03:50:58 "GET http://localhost:8080/v1/stats/models HTTP/1.1" from [::1]:60087 - 200 1069B in 298.7547ms
+2026/07/09 04:16:36 "GET http://localhost:8080/v1/matches HTTP/1.1" from [::1]:63690 - 200 56194B in 909.6584ms
+2026/07/09 04:16:41 "GET http://localhost:8080/v1/matches HTTP/1.1" from [::1]:63691 - 200 56194B in 805.9455ms
+2026/07/09 04:26:28 "GET http://localhost:8080/v1/predictions/compare HTTP/1.1" from [::1]:61468 - 404 19B in 0s

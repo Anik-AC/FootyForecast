@@ -30,7 +30,7 @@ import TeamForm from "@/components/TeamForm";
 import HeadToHead from "@/components/HeadToHead";
 import LocalTime from "@/components/LocalTime";
 import { flagUrl } from "@/lib/flags";
-import type { MatchEvent } from "@/lib/types";
+import type { MatchEvent, MomentumPoint } from "@/lib/types";
 
 const MONO = "'JetBrains Mono',monospace";
 
@@ -154,18 +154,26 @@ function MatchEventsCard({
   );
 }
 
+function avgMomentum(momentum: MomentumPoint[], from: number, to: number): number | null {
+  const pts = momentum.filter((p) => p.minute >= from && p.minute <= to);
+  if (!pts.length) return null;
+  return pts.reduce((s, p) => s + p.value, 0) / pts.length;
+}
+
 function MatchFacts({
   events,
   homeTeam,
   awayTeam,
   homeGoals,
   awayGoals,
+  momentum,
 }: {
   events: MatchEvent[];
   homeTeam: string;
   awayTeam: string;
   homeGoals: number;
   awayGoals: number;
+  momentum: MomentumPoint[];
 }) {
   const goals = events.filter((e) => e.incident_type === "goal" || e.incident_type === "own_goal");
   const yellows = events.filter((e) => e.incident_type === "yellow_card" || e.incident_type === "yellow_red_card");
@@ -203,7 +211,25 @@ function MatchFacts({
   if (yellows.length > 0) facts.push({ icon: "🟨", text: `${yellows.length} yellow card${yellows.length > 1 ? "s" : ""} shown` });
   if (reds.length > 0) facts.push({ icon: "🟥", text: `${reds.length} red card${reds.length > 1 ? "s" : ""} — ${reds.map((r) => r.player_name ?? (r.is_home ? homeTeam : awayTeam)).join(", ")}` });
   if (subs.length > 0) facts.push({ icon: "↔", text: `${subs.length} substitution${subs.length > 1 ? "s" : ""}` });
-  if (breakMinutes.length > 0) facts.push({ icon: "💧", text: `${breakMinutes.length} hydration break${breakMinutes.length > 1 ? "s" : ""} — ${breakMinutes.map((m) => `${m}'`).join(", ")}` });
+
+  // Momentum shift after hydration breaks (threshold: avg value > 0.5 on either side)
+  const THRESHOLD = 0.5;
+  const WINDOW = 5;
+  for (const min of breakMinutes) {
+    if (!momentum.length) break;
+    const before = avgMomentum(momentum, min - WINDOW, min);
+    const after = avgMomentum(momentum, min, min + WINDOW);
+    if (before === null || after === null) continue;
+    const homeBefore = before > THRESHOLD;
+    const awayBefore = before < -THRESHOLD;
+    const homeAfter = after > THRESHOLD;
+    const awayAfter = after < -THRESHOLD;
+    if (homeBefore && awayAfter) {
+      facts.push({ icon: "💧", text: `Momentum shifted to ${awayTeam} after the hydration break (${min}&apos;)` });
+    } else if (awayBefore && homeAfter) {
+      facts.push({ icon: "💧", text: `Momentum shifted to ${homeTeam} after the hydration break (${min}&apos;)` });
+    }
+  }
 
   if (facts.length === 0) return null;
 
@@ -282,7 +308,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
   return (
     <div style={{ animation: "ff-up 0.4s ease both", paddingTop: 32, maxWidth: 740, margin: "0 auto" }}>
       {/* Back link */}
-      <Link href="/" style={{
+      <Link href={isCompleted ? "/results" : "/matches"} style={{
         display: "inline-flex",
         alignItems: "center",
         gap: 6,
@@ -292,7 +318,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
         textDecoration: "none",
         marginBottom: 24,
       }}>
-        ← All matches
+        {isCompleted ? "← Results" : "← Upcoming"}
       </Link>
 
       {/* Match hero card */}
@@ -500,6 +526,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
             awayTeam={away_team.name}
             homeGoals={prediction.actual_result!.home_goals}
             awayGoals={prediction.actual_result!.away_goals}
+            momentum={momentum}
           />
 
           {hasMarketData && (

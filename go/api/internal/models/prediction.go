@@ -43,6 +43,57 @@ type ExpectedGoals struct {
 	AwayXG float64 `json:"away_xg"`
 }
 
+// ModelPick is one model's prediction for a single fixture.
+type ModelPick struct {
+	ModelVersion string   `json:"model_version"`
+	HomeWinProb  float64  `json:"home_win_prob"`
+	DrawProb     float64  `json:"draw_prob"`
+	AwayWinProb  float64  `json:"away_win_prob"`
+	Pick         string   `json:"pick"` // "home", "draw", "away"
+	HomeXG       *float64 `json:"home_xg,omitempty"`
+	AwayXG       *float64 `json:"away_xg,omitempty"`
+}
+
+// FixtureComparison combines a fixture with predictions from all available model versions.
+type FixtureComparison struct {
+	MatchID    string              `json:"match_id"`
+	KickoffUTC time.Time           `json:"kickoff_utc"`
+	Stage      string              `json:"stage"`
+	HomeTeam   Team                `json:"home_team"`
+	AwayTeam   Team                `json:"away_team"`
+	Result     *MatchResultSummary `json:"result,omitempty"`
+	Models     []ModelPick         `json:"models"`
+}
+
+// ModelComparisonRow is one model's aggregate grading stats.
+type ModelComparisonRow struct {
+	ModelVersion      string   `json:"model_version"`
+	GradedCount       int      `json:"graded_count"`
+	Accuracy          float64  `json:"accuracy"`
+	MeanLogLoss       float64  `json:"mean_log_loss"`
+	MeanBrierScore    float64  `json:"mean_brier_score"`
+	// MarketMeanLogLoss is the mean log-loss of market odds on the same graded fixtures.
+	// Null when no market data is available.
+	MarketMeanLogLoss    *float64 `json:"market_mean_log_loss"`
+	MarketMeanBrierScore *float64 `json:"market_mean_brier_score"`
+}
+
+// ChampionTeamProb is one team's probability of winning the tournament,
+// from a specific simulation run.
+type ChampionTeamProb struct {
+	TeamID      string  `json:"team_id"`
+	TeamName    string  `json:"team_name"`
+	Probability float64 `json:"probability"`
+}
+
+// PredictionComparison is the full multi-model comparison response:
+// knockout-stage fixtures annotated with per-model predictions, plus
+// champion probabilities from each available simulation version.
+type PredictionComparison struct {
+	Matches       []FixtureComparison           `json:"matches"`
+	ChampionProbs map[string][]ChampionTeamProb `json:"champion_probs"`
+}
+
 // KnockoutProbabilities extends the 90-min model for knockout rounds.
 // If the match is level after 90 min it goes to ET (30 min), then penalties.
 // These fields let the frontend show "if it's a draw" scenarios without

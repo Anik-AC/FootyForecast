@@ -41,7 +41,7 @@ from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
 
-MODEL_VERSION = "bayesian_goals_v2"
+MODEL_VERSION = "bayesian_goals_v3"
 
 _TRACE_DIR = Path(__file__).parent.parent.parent / "data" / "traces"
 _TRACE_PATH = _TRACE_DIR / "goals_model.nc"
@@ -244,24 +244,42 @@ def fit(
 # Persist
 # ---------------------------------------------------------------------------
 
-def save(trace: xr.DataTree, meta: dict, path: Path = _TRACE_PATH) -> None:
+def _meta_path_for(trace_path: Path) -> Path:
+    """Derive the companion JSON metadata path from the trace path.
+
+    Convention: goals_model.nc -> goals_model_meta.json
+    """
+    return trace_path.parent / (trace_path.stem + "_meta.json")
+
+
+def save(
+    trace: xr.DataTree,
+    meta: dict,
+    path: Path = _TRACE_PATH,
+    meta_path: Path | None = None,
+) -> None:
     """Save trace (NetCDF4) and metadata (JSON) to disk."""
+    mp = meta_path if meta_path is not None else _meta_path_for(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     # az.to_netcdf was removed in ArviZ 1.x; use the DataTree method directly.
     trace.to_netcdf(str(path))
-    with open(_META_PATH, "w", encoding="utf-8") as f:
+    with open(mp, "w", encoding="utf-8") as f:
         json.dump(meta, f, indent=2)
-    logger.info("Saved trace to %s", path)
+    logger.info("Saved trace to %s (meta: %s)", path, mp)
 
 
-def load(path: Path = _TRACE_PATH) -> tuple[xr.DataTree, dict]:
+def load(
+    path: Path = _TRACE_PATH,
+    meta_path: Path | None = None,
+) -> tuple[xr.DataTree, dict]:
     """Load trace and metadata from disk."""
+    mp = meta_path if meta_path is not None else _meta_path_for(path)
     if not path.exists():
         raise FileNotFoundError(
             f"No trace found at {path}. Run `python -m footy.models.goals` first."
         )
     trace = az.from_netcdf(str(path))
-    with open(_META_PATH, encoding="utf-8") as f:
+    with open(mp, encoding="utf-8") as f:
         meta = json.load(f)
     logger.info("Loaded trace from %s", path)
     return trace, meta
@@ -271,11 +289,17 @@ def load(path: Path = _TRACE_PATH) -> tuple[xr.DataTree, dict]:
 # Export parameters to Postgres (for the Go simulator)
 # ---------------------------------------------------------------------------
 
-def export_params(trace: xr.DataTree, meta: dict, conn) -> None:
+def export_params(
+    trace: xr.DataTree,
+    meta: dict,
+    conn,
+    version: str | None = None,
+) -> None:
     """
     Write posterior mean attack / defence strengths and global parameters to
     team_model_params and model_globals so the Go simulator can read them.
 
+    version defaults to MODEL_VERSION when None.
     Uses ON CONFLICT DO UPDATE so re-running after a new fit overwrites stale values.
     """
     import psycopg
@@ -285,7 +309,7 @@ def export_params(trace: xr.DataTree, meta: dict, conn) -> None:
     mu_mean       = float(trace.posterior["mu"].mean(dim=["chain", "draw"]).values)
     home_adv_mean = float(trace.posterior["home_adv"].mean(dim=["chain", "draw"]).values)
 
-    version = MODEL_VERSION
+    version = version or MODEL_VERSION
 
     with conn.cursor() as cur:
         cur.execute(
@@ -322,6 +346,22 @@ def export_params(trace: xr.DataTree, meta: dict, conn) -> None:
 # CLI
 # ---------------------------------------------------------------------------
 
+_PRESETS: dict[str, dict] = {
+    "recency": {
+        "half_life":  365.0,
+        "wc_boost":   3.0,
+        "version":    "bayesian_goals_v3",
+        "trace_name": "goals_model",
+    },
+    "historical": {
+        "half_life":  730.0,
+        "wc_boost":   1.0,
+        "version":    "bayesian_goals_historical",
+        "trace_name": "goals_model_historical",
+    },
+}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Fit the Bayesian goals model.")
     parser.add_argument(
@@ -329,16 +369,36 @@ def main() -> None:
         action="store_true",
         help="200 draws / 200 tune / 2 chains for smoke-testing (not production).",
     )
+    parser.add_argument(
+        "--preset",
+        choices=list(_PRESETS),
+        default="recency",
+        help=(
+            "recency (default): 365d half-life, 3x WC2026 boost -> bayesian_goals_v3. "
+            "historical: 730d half-life, no boost -> bayesian_goals_historical."
+        ),
+    )
     args = parser.parse_args()
 
     load_dotenv()
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 
+    cfg         = _PRESETS[args.preset]
+    trace_path  = _TRACE_DIR / f"{cfg['trace_name']}.nc"
+    version     = cfg["version"]
+
+    print(f"\nPreset: {args.preset}  |  half_life={cfg['half_life']}d  "
+          f"wc_boost={cfg['wc_boost']}  version={version}")
+
     from footy.db import get_conn
     from footy.features.training_data import load_wc_teams, prepare_training_data
 
     with get_conn() as conn:
-        df       = prepare_training_data(conn)
+        df       = prepare_training_data(
+                       conn,
+                       half_life_days=cfg["half_life"],
+                       wc2026_boost=cfg["wc_boost"],
+                   )
         teams_df = load_wc_teams(conn)
 
     print(f"\nTraining on {len(df)} matches involving {df['home_id'].nunique()} unique WC teams.")
@@ -360,11 +420,11 @@ def main() -> None:
     else:
         print("\nConvergence OK: all R-hat <= 1.05")
 
-    save(trace, meta)
+    save(trace, meta, path=trace_path)
 
     with get_conn() as conn:
-        export_params(trace, meta, conn)
-    print("Model parameters exported to DB (team_model_params, model_globals).")
+        export_params(trace, meta, conn, version=version)
+    print(f"Model parameters exported to DB (model_version={version}).")
 
     # Print attack rankings as a sanity check.
     att_mean = trace.posterior["att"].mean(dim=["chain", "draw"]).values
@@ -373,7 +433,7 @@ def main() -> None:
     for i, (team, val) in enumerate(ranking[:10], 1):
         print(f"  {i:2d}. {team:<4}  {val:+.3f}")
 
-    print(f"\nTrace saved to {_TRACE_PATH}")
+    print(f"\nTrace saved to {trace_path}")
 
 
 if __name__ == "__main__":

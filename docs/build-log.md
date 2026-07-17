@@ -2,6 +2,83 @@
 
 Dated, append-only record of what changed and why. Newest entries at the top.
 
+## 2026-07-09: Prediction comparison frontend page
+
+Added `/predictions/compare`, a new page showing every knockout-round fixture with side-by-side predictions from all three models, plus a visual champion probability comparison between the Recency and Historical QF simulations.
+
+**New endpoint:** `GET /v1/predictions/compare` returns a single JSON object with two keys: `matches` (all QF/SF/Final fixtures with a `models` array per fixture, one entry per model version) and `champion_probs` (map from simulation model version to list of teams with champion probability, sorted descending). The endpoint uses `DISTINCT ON (fixture_id, model_version)` to take the latest prediction per pair, keeping the query a single pass with no subqueries.
+
+**Files changed:**
+
+- `go/api/internal/models/prediction.go`: Added `ChampionTeamProb` and `PredictionComparison` response structs.
+- `go/api/internal/store/store.go`: Added `GetPredictionComparison` to Store interface.
+- `go/api/internal/store/postgres.go`: Implemented `GetPredictionComparison` with two queries (fixture predictions + champion probs CTE).
+- `go/api/internal/handlers/calibration.go`: Added `GetPredictionComparison` handler.
+- `go/api/cmd/api/main.go`: Registered route `GET /v1/predictions/compare`.
+- `web/lib/types.ts`: Added `ModelPick`, `FixtureComparison`, `ChampionTeamProb`, `PredictionComparison` interfaces.
+- `web/lib/api.ts`: Added `getPredictionComparison()` fetch function.
+- `web/app/predictions/compare/page.tsx`: New page. Shows QF/SF/Final matches grouped by stage, each with 3 model columns (home %, draw %, away %, pick badge, xG where available). "ALL MODELS AGREE" badge when all three picks match. Champion probability section shows horizontal bar chart per team comparing Recency vs Historical simulation.
+- `web/app/stats/models/page.tsx`: Added "See match predictions" link to the header.
+
+**Verified:** API returns 4 QF fixtures (no SF/Final yet), all three models present per fixture, champion probs for both simulation versions. TypeScript and Go compile clean.
+
+## 2026-07-09: Multi-model comparison
+
+Added three models to compare against each other over the remaining QF-Final matches. Goal: see which prediction strategy was closest to truth by the time the tournament ends.
+
+**Models added:**
+
+- `bayesian_goals_historical`: Same Bayesian Poisson architecture as v3 but with 2-year half-life (HALF_LIFE=730) and no WC 2026 boost (WC2026_BOOST=1.0). Represents a "long-run pedigree" view that ignores recency. Trained in 11 seconds (same data, different weights). Trace saved to `data/traces/goals_model_historical.nc`.
+- `elo_v1`: Simple Elo-rating to 3-way probability conversion. Formula: E=1/(1+10^(-Δ/400)), P(draw)=0.25*exp(-Δ²/(2*400²)). No MCMC. Runs in under 1 second. New file: `python/footy/models/elo_predict.py`.
+
+**Infrastructure changes:**
+
+- `python/footy/features/training_data.py`: Added `half_life_days` and `wc2026_boost` parameters to `prepare_training_data()`. Existing callers unaffected (defaults to module constants).
+- `python/footy/models/goals.py`: Added `--preset [recency|historical]` CLI flag and `_PRESETS` dict. Fixed `save()`/`load()` to derive meta path from trace path, enabling multiple trace files. Added `version` parameter to `export_params()`.
+- `python/footy/models/predict.py`: Added `model_version` parameter to `_write_prediction()`, `predict_all_upcoming()`, `predict_all_retroactive()`. Added `--model-version` and `--trace-path` CLI flags so predict can run against any trained trace.
+- `go/api`: Added `GET /v1/stats/models` endpoint. New `GetModelComparison` store method, handler, and route. Returns per-model accuracy, log-loss, Brier score grouped by model_version.
+- `web/app/stats/models/page.tsx`: New model comparison leaderboard page. Shows each model's accuracy, log-loss, and Brier score with ranked cards and metric explainer. Linked from the Stats page "MODEL PERFORMANCE" section.
+
+**Pipeline run:** `footy.models.goals --preset historical` (1000 draws, converged) → `footy.models.predict --retroactive --model-version bayesian_goals_historical --trace-path ...` (96 retroactive + 4 upcoming) → `footy.models.elo_predict --retroactive` (96 + 4) → `footy.grading` (192 new rows).
+
+**Early results (all retroactive, in-sample on 96 completed matches):**
+
+| Model | Accuracy | Log-loss |
+| --- | --- | --- |
+| bayesian_goals_v3 | 70.8% | 0.745 |
+| elo_v1 | 66.7% | 0.814 |
+| bayesian_goals_historical | 64.6% | 0.870 |
+
+Takeaway: the recency model leads clearly. The historical model underperforms even Elo, confirming that how teams play inside this specific tournament is the dominant signal. These are in-sample results (retroactive predictions); out-of-sample QF-Final performance will be the real test.
+
+## 2026-07-09: QF-conditional bracket prediction
+
+Added a QF-conditional simulation mode and updated the Predictions Bracket page to focus exclusively on the 8 confirmed Quarter-Final teams.
+
+**Go simulator (`go/simulator`):** Added `--from-qf` flag. When set, loads the 4 actual QF fixtures from DB (`quarter_final` stage, sorted by kickoff), simulates only QF→SF→Final using the confirmed bracket, and writes results with model_version `bayesian_goals_v3_qf`. New functions: `tournament.SimulateFromQF`, `montecarlo.RunFromQF`, `db.LoadQFFixtures`. 100k simulations complete in ~83ms (no group-stage overhead).
+
+**Go API (`go/api`):** Added `GET /v1/simulation/qf` endpoint returning QF-conditional probabilities for the 8 remaining teams. Modified `GetLatestSimulation` SQL to exclude `_qf` model versions so other pages (Stats, Teams, Bracket) are unaffected. Added `GetQFSimulation` to Store interface and PostgresStore.
+
+**Frontend (`web/app/predictions/page.tsx`):** Switched from `getLatestSimulation()` to `getQFSimulation()`. The page now shows QF-conditional champion percentages (probabilities given the team is already in QF, summing to 100% across all 8 teams). Description updated. Champion banner shows "X% to lift the trophy."
+
+**QF-conditional results (100k simulations, bayesian_goals_v3):** ESP 29.0%, FRA 24.6%, ARG 16.1%, ENG 9.7%, SUI 6.4%, BEL 6.1%, MAR 5.1%, NOR 3.1%.
+
+Predicted bracket: FRA beats MAR (QF1), ESP beats BEL (QF2), ENG beats NOR (QF3), ARG beats SUI (QF4) → SF1: ESP over FRA, SF2: ARG over ENG → Final: ESP over ARG.
+
+## 2026-07-09: Model v3 retrain with tournament recency boost
+
+Retrained the Bayesian goals model (now `bayesian_goals_v3`) with two changes designed to make predictions reflect current tournament form more accurately:
+
+1. **Half-life reduced 730 → 365 days**: historical matches from 2 years ago now carry half the weight they did before, making the model more responsive to recent form.
+2. **WC 2026 tournament boost (3x)**: every match played in this specific tournament gets `comp_weight = 1.0 * 3.0 = 3.0` instead of `1.0`. Rationale: how teams perform in WC 2026 conditions (schedule, pressure, opposition level) is the strongest signal for their remaining matches. Net effect: WC 2026 matches outweigh historical background data by ~16x.
+
+Changes in `python/footy/features/training_data.py`: `HALF_LIFE_DAYS = 365.0`, added `WC2026_BOOST = 3.0` constant applied to WC 2026 comp_weight.
+Changes in `python/footy/models/goals.py`: `MODEL_VERSION = "bayesian_goals_v3"`.
+
+Pipeline run: `footy.ingest.wc2026` (96 completed results through R16) → `footy.models.goals` (1000 draws, 500 tune, 2 chains, R-hat OK) → exported params to `team_model_params`/`model_globals` → `footy.models.predict --retroactive` (96 retroactive + 4 upcoming QF) → `footy.grading` (96 matches graded).
+
+Go simulator rebuilt and re-run (100k simulations, `bayesian_goals_v3`). Updated default version flag from `bayesian_goals_v1` to `bayesian_goals_v3` in `go/simulator/cmd/simulator/main.go`. New champion probs: ESP 23.6%, FRA 18.8%, ARG 8.9%, POR 7.6%. The bracket `/predictions` page picks these up automatically from `simulation_results`.
+
 ## 2026-07-08: Predictions Bracket page
 
 Added `/predictions` page (`web/app/predictions/page.tsx`) - a visual knockout bracket that cascades model predictions from QF through SF to Final.

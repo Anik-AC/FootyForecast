@@ -198,6 +198,44 @@ func knockoutWinner(lh, la float64, home, away string, rng *rand.Rand) string {
 	return away
 }
 
+// SimulateFromQF simulates from Quarter-Finals onward using actual confirmed QF fixtures.
+// qfPairs is [QF0home, QF0away, QF1home, QF1away, QF2home, QF2away, QF3home, QF3away].
+// SF1 = winner(QF0) vs winner(QF1); SF2 = winner(QF2) vs winner(QF3).
+// Returns each team's deepest stage reached (QF, SF, FINAL, CHAMPION).
+func SimulateFromQF(qfPairs [8]string, params map[string]TeamParams, rng *rand.Rand) map[string]string {
+	reached := make(map[string]string, 8)
+	for _, tid := range qfPairs {
+		reached[tid] = StageQF
+	}
+
+	// QF round: 4 matches → 4 SF qualifiers
+	sfTeams := make([]string, 0, 4)
+	for i := 0; i < 4; i++ {
+		home, away := qfPairs[i*2], qfPairs[i*2+1]
+		lh, la := lambdas(home, away, params)
+		winner := knockoutWinner(lh, la, home, away, rng)
+		sfTeams = append(sfTeams, winner)
+		reached[winner] = StageSF
+	}
+
+	// SF round: SF1 = sfTeams[0] vs sfTeams[1]; SF2 = sfTeams[2] vs sfTeams[3]
+	finTeams := make([]string, 0, 2)
+	for i := 0; i < 2; i++ {
+		home, away := sfTeams[i*2], sfTeams[i*2+1]
+		lh, la := lambdas(home, away, params)
+		winner := knockoutWinner(lh, la, home, away, rng)
+		finTeams = append(finTeams, winner)
+		reached[winner] = StageFinal
+	}
+
+	// Final
+	lh, la := lambdas(finTeams[0], finTeams[1], params)
+	champion := knockoutWinner(lh, la, finTeams[0], finTeams[1], rng)
+	reached[champion] = StageChampion
+
+	return reached
+}
+
 // splitKey splits "HOME:AWAY" into ("HOME", "AWAY").
 func splitKey(key string) (string, string) {
 	for i, c := range key {

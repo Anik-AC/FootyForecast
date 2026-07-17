@@ -18,6 +18,8 @@ type Store interface {
 	GetMatches(ctx context.Context) ([]models.MatchSummary, error)
 	GetMatchPrediction(ctx context.Context, matchID string) (*models.MatchPrediction, error)
 	GetLatestSimulation(ctx context.Context) (*models.TournamentSimulation, error)
+	// GetQFSimulation returns the latest QF-conditional simulation (model version ending in _qf).
+	GetQFSimulation(ctx context.Context) (*models.TournamentSimulation, error)
 	GetMarketComparison(ctx context.Context, matchID string) (*models.MarketComparison, error)
 	GetCalibration(ctx context.Context) (*models.CalibrationSummary, error)
 	GetMatchTrivia(ctx context.Context, matchID string) (*models.MatchTrivia, error)
@@ -67,4 +69,10 @@ type Store interface {
 	GetTopAssists(ctx context.Context, limit int) ([]models.TopScorer, error)
 	// GetTournamentTrivia computes tournament-wide records and milestones on the fly.
 	GetTournamentTrivia(ctx context.Context) (*models.TournamentTriviaResponse, error)
+	// GetModelComparison returns per-model grading stats across all graded WC 2026 matches,
+	// ordered by mean log-loss ascending (best model first).
+	GetModelComparison(ctx context.Context) ([]models.ModelComparisonRow, error)
+	// GetPredictionComparison returns all knockout fixtures with side-by-side predictions
+	// from the three main model versions, plus champion probabilities from each simulation.
+	GetPredictionComparison(ctx context.Context) (*models.PredictionComparison, error)
 }
